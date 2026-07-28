@@ -136,6 +136,7 @@
 
     .controls {
       display: flex;
+      gap: 10px;
       margin-bottom: 22px;
     }
     button {
@@ -166,16 +167,134 @@
       color: var(--text);
     }
 
-    .settings { display: grid; gap: 16px; }
+    .settings-btn {
+      flex: none;
+      width: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 14px;
+      background: #2a2f42;
+      color: var(--text);
+      font-size: 18px;
+      position: relative;
+    }
+    .settings-btn.open {
+      background: rgba(91,140,255,0.18);
+      color: var(--accent);
+      box-shadow: inset 0 0 0 1px rgba(91,140,255,0.45);
+    }
+    .settings-btn.live::after {
+      content: '';
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--ok);
+      box-shadow: 0 0 0 2px #2a2f42;
+    }
+
+    .settings {
+      display: none;
+      grid-gap: 12px;
+      margin-bottom: 4px;
+    }
+    .settings.open { display: grid; }
+    .settings-group {
+      display: grid;
+      gap: 12px;
+      padding: 12px;
+      background: #11131c;
+      border: 1px solid #272b3b;
+      border-radius: 12px;
+    }
+    .settings-group__head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      min-height: 28px;
+    }
+    .settings-group__title {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .settings-group__actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
     .row { display: grid; gap: 6px; }
     .row label {
       font-size: 13px;
       color: var(--muted);
       display: flex;
       justify-content: space-between;
+      gap: 12px;
     }
-    .row label b { color: var(--text); font-weight: 600; }
+    .row label b { color: var(--text); font-weight: 600; flex: none; }
     input[type="range"] { width: 100%; accent-color: var(--accent); }
+
+    .metro-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      width: 100%;
+      padding: 11px 14px;
+      font-size: 14px;
+      font-weight: 600;
+      border-radius: 10px;
+      background: #2a2f42;
+      color: var(--text);
+      box-shadow: inset 0 0 0 1px #3a4158;
+    }
+    .metro-toggle.on {
+      background: rgba(91,140,255,0.12);
+      color: var(--accent);
+      box-shadow: inset 0 0 0 1px rgba(91,140,255,0.4);
+    }
+    .metro-toggle__icon {
+      font-size: 12px;
+      line-height: 1;
+      width: 1em;
+      text-align: center;
+    }
+    .metro-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .metro-head__title {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .metro__beat {
+      flex: none;
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: #2a2f42;
+      box-shadow: inset 0 0 0 1px #3a4158;
+      transition: background 0.05s, box-shadow 0.05s;
+    }
+    .metro__beat.flash {
+      background: var(--accent);
+      box-shadow: 0 0 0 4px rgba(91,140,255,0.25);
+    }
+    .metro__beat.flash.accent {
+      background: var(--accent-2);
+      box-shadow: 0 0 0 4px rgba(255,91,140,0.25);
+    }
 
     .history {
       margin-top: 24px;
@@ -204,6 +323,115 @@
       color: var(--text);
     }
     .clear-btn:disabled { opacity: 0.4; }
+    .menu {
+      position: relative;
+      flex: none;
+    }
+    .menu-btn {
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      border-radius: 8px;
+      background: #2a2f42;
+      color: var(--text);
+      font-size: 18px;
+      line-height: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .menu-btn.open {
+      background: rgba(91,140,255,0.18);
+      color: var(--accent);
+      box-shadow: inset 0 0 0 1px rgba(91,140,255,0.45);
+    }
+    .menu__dropdown {
+      position: absolute;
+      top: calc(100% + 6px);
+      right: 0;
+      min-width: 148px;
+      padding: 6px;
+      background: #1a1d29;
+      border: 1px solid #272b3b;
+      border-radius: 10px;
+      box-shadow: 0 12px 30px rgba(0,0,0,0.45);
+      z-index: 20;
+      display: none;
+    }
+    .menu__dropdown.open { display: block; }
+    .menu__item {
+      width: 100%;
+      padding: 9px 12px;
+      border-radius: 7px;
+      background: transparent;
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 600;
+      text-align: left;
+    }
+    .menu__item:hover:not(:disabled) {
+      background: #2a2f42;
+    }
+    .menu__item.on {
+      color: var(--accent);
+      background: rgba(91,140,255,0.12);
+    }
+    .menu__item.danger {
+      color: var(--accent-2);
+    }
+    .menu__item:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    .dialog {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .dialog[hidden] { display: none; }
+    .dialog__backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.55);
+    }
+    .dialog__card {
+      position: relative;
+      width: 100%;
+      max-width: 340px;
+      padding: 20px;
+      background: #1a1d29;
+      border: 1px solid #272b3b;
+      border-radius: 14px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+    }
+    .dialog__msg {
+      margin: 0 0 18px;
+      font-size: 14px;
+      line-height: 1.5;
+      color: var(--text);
+    }
+    .dialog__actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+    .dialog__btn {
+      padding: 9px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      background: #2a2f42;
+      color: var(--text);
+    }
+    .dialog__btn.danger {
+      background: rgba(255,91,140,0.18);
+      color: var(--accent-2);
+      box-shadow: inset 0 0 0 1px rgba(255,91,140,0.35);
+    }
     .history__list {
       display: flex;
       flex-direction: column;
@@ -227,6 +455,7 @@
       padding: 8px 10px;
     }
     .clip.playing { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(91,140,255,0.2); }
+    .clip.starred { border-color: rgba(255,196,77,0.45); }
     .clip__play {
       flex: none;
       width: 34px; height: 34px;
@@ -240,8 +469,32 @@
       justify-content: center;
     }
     .clip__meta { flex: 1; min-width: 0; }
-    .clip__title { font-size: 13px; font-weight: 600; }
+    .clip__title {
+      font-size: 13px;
+      font-weight: 600;
+      cursor: text;
+      border-radius: 4px;
+      padding: 1px 2px;
+      margin: -1px -2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .clip__title:hover { background: rgba(255,255,255,0.05); }
     .clip__sub { font-size: 11px; color: var(--muted); }
+    .clip__rename {
+      width: 100%;
+      margin: -2px 0;
+      padding: 2px 6px;
+      font: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      background: #0f1117;
+      border: 1px solid var(--accent);
+      border-radius: 6px;
+      outline: none;
+    }
     .clip__btn {
       flex: none;
       width: 32px; height: 32px;
@@ -249,10 +502,92 @@
       border-radius: 8px;
       background: #2a2f42;
       color: var(--text);
-      font-size: 14px;
+      font-size: 13px;
       display: flex;
       align-items: center;
       justify-content: center;
+    }
+    .clip__btn svg {
+      width: 15px;
+      height: 15px;
+      display: block;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .clip__btn.primary {
+      background: var(--accent);
+      color: #fff;
+    }
+    .clip__btn.primary.star.on {
+      color: #ffc44d;
+      background: rgba(255,196,77,0.18);
+      box-shadow: inset 0 0 0 1px rgba(255,196,77,0.35);
+    }
+    .clip__btn.archive.on {
+      color: var(--accent);
+      background: rgba(91,140,255,0.12);
+    }
+    .clip__btn.danger:hover {
+      color: var(--accent-2);
+      background: rgba(255,91,140,0.12);
+    }
+    .clip__actions {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex: none;
+      position: relative;
+    }
+    .clip__more {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      position: absolute;
+      right: calc(100% + 4px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.18s ease;
+    }
+    .clip:hover .clip__more,
+    .clip:focus-within .clip__more {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    @media (hover: none) {
+      .clip__more {
+        position: static;
+        opacity: 1;
+        pointer-events: auto;
+      }
+    }
+    .history__actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+    .filter-btn {
+      flex: none;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      border-radius: 8px;
+      background: #2a2f42;
+      color: var(--text);
+    }
+    .filter-btn.on {
+      background: rgba(255,196,77,0.14);
+      color: #ffc44d;
+      box-shadow: inset 0 0 0 1px rgba(255,196,77,0.35);
+    }
+    .filter-btn.archive.on {
+      background: rgba(91,140,255,0.14);
+      color: var(--accent);
+      box-shadow: inset 0 0 0 1px rgba(91,140,255,0.35);
     }
   </style>
 </head>
@@ -285,26 +620,67 @@
         <span class="session-btn__icon" id="sessionIcon">▶</span>
         <span id="sessionLabel">Start session</span>
       </button>
+      <button class="settings-btn" id="metroPanelBtn" title="Metronome" aria-label="Metronome" aria-expanded="false">♪</button>
+      <button class="settings-btn" id="settingsBtn" title="Settings" aria-label="Settings" aria-expanded="false">⚙</button>
     </div>
 
-    <div class="settings">
+    <div class="settings" id="settingsPanel" hidden>
       <div class="row">
         <label>Silence threshold <b id="threshVal">8%</b></label>
         <input type="range" id="thresh" min="1" max="40" value="8" />
       </div>
       <div class="row">
-        <label>Silence duration before playback <b id="durVal">1.5s</b></label>
+        <label>Silence duration <b id="durVal">1.5s</b></label>
         <input type="range" id="dur" min="300" max="4000" step="100" value="1500" />
+      </div>
+    </div>
+
+    <div class="settings" id="metroPanel" hidden>
+      <div class="metro-head">
+        <span class="metro-head__title">Metronome</span>
+        <span class="metro__beat" id="metroBeat" aria-hidden="true"></span>
+      </div>
+      <button class="metro-toggle" id="metroBtn" aria-pressed="false">
+        <span class="metro-toggle__icon" id="metroIcon">▶</span>
+        <span id="metroLabel">Play</span>
+      </button>
+      <div class="row">
+        <label>Tempo <b id="bpmVal">120 BPM</b></label>
+        <input type="range" id="bpm" min="40" max="208" step="1" value="120" />
+      </div>
+      <div class="row">
+        <label>Beats per bar <b id="beatsVal">4</b></label>
+        <input type="range" id="beats" min="2" max="6" step="1" value="4" />
       </div>
     </div>
 
     <div class="history">
       <div class="history__head">
-        <h2>History <span id="historyCount">(0)</span></h2>
-        <button class="clear-btn" id="clearBtn" disabled>Clear all</button>
+        <h2><span id="historyTitle">History</span> <span id="historyCount">(0)</span></h2>
+        <div class="history__actions">
+          <button class="filter-btn" id="keepersBtn" title="Show starred keepers only">★ Keepers</button>
+          <div class="menu" id="historyMenu">
+            <button class="menu-btn" id="menuBtn" title="More" aria-label="More options" aria-haspopup="true" aria-expanded="false">⋮</button>
+            <div class="menu__dropdown" id="menuDropdown" role="menu" hidden>
+              <button class="menu__item" id="archivedBtn" role="menuitem" disabled>Archived</button>
+              <button class="menu__item danger" id="clearBtn" role="menuitem" disabled>Clear all</button>
+            </div>
+          </div>
+        </div>
       </div>
       <div class="history__list" id="historyList">
         <div class="history__empty" id="historyEmpty">No recordings yet.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="dialog" id="confirmDialog" hidden>
+    <div class="dialog__backdrop" id="confirmBackdrop"></div>
+    <div class="dialog__card" role="alertdialog" aria-modal="true" aria-describedby="confirmMsg">
+      <p class="dialog__msg" id="confirmMsg"></p>
+      <div class="dialog__actions">
+        <button class="dialog__btn" type="button" id="confirmCancel">Cancel</button>
+        <button class="dialog__btn danger" type="button" id="confirmOk">Delete</button>
       </div>
     </div>
   </div>
@@ -327,7 +703,34 @@
     const historyList = document.getElementById('historyList');
     const historyEmpty = document.getElementById('historyEmpty');
     const historyCount = document.getElementById('historyCount');
+    const historyTitle = document.getElementById('historyTitle');
     const clearBtn = document.getElementById('clearBtn');
+    const menuBtn = document.getElementById('menuBtn');
+    const menuDropdown = document.getElementById('menuDropdown');
+    const confirmDialog = document.getElementById('confirmDialog');
+    const confirmMsg = document.getElementById('confirmMsg');
+    const confirmOk = document.getElementById('confirmOk');
+    const confirmCancel = document.getElementById('confirmCancel');
+    const confirmBackdrop = document.getElementById('confirmBackdrop');
+    const keepersBtn = document.getElementById('keepersBtn');
+    const archivedBtn = document.getElementById('archivedBtn');
+    const settingsBtn = document.getElementById('settingsBtn');
+    const settingsPanel = document.getElementById('settingsPanel');
+    const metroPanelBtn = document.getElementById('metroPanelBtn');
+    const metroPanel = document.getElementById('metroPanel');
+    const metroBtn = document.getElementById('metroBtn');
+    const metroBeat = document.getElementById('metroBeat');
+    const metroIcon = document.getElementById('metroIcon');
+    const metroLabel = document.getElementById('metroLabel');
+    const bpmSlider = document.getElementById('bpm');
+    const bpmVal = document.getElementById('bpmVal');
+    const beatsSlider = document.getElementById('beats');
+    const beatsVal = document.getElementById('beatsVal');
+
+    const DB_NAME = 'repeat';
+    const DB_VERSION = 1;
+    const LEGACY_HISTORY_KEY = 'repeat-history';
+    const LEGACY_METRO_KEY = 'repeat-metronome';
 
     let audioCtx, analyser, sourceNode, micStream;
     let mediaRecorder, chunks = [];
@@ -342,9 +745,321 @@
     let recordStartTime = 0;      // when the current take began
 
     // Recording history
-    const history = [];           // { id, url, blob, duration, time, ext }
+    const history = [];           // { id, url, blob, duration, time, ext, type, starred, archived, name }
     let takeNum = 0;
     let nowPlayingEl = null;
+    let historyFilter = 'active'; // 'active' | 'keepers' | 'archived'
+    let dbPromise = null;
+
+    // Metronome
+    let metroCtx = null;
+    let metroTimer = null;
+    let metroOn = false;
+    let metroBeatIndex = 0;
+    let metroNextTime = 0;
+
+    function setPanelOpen(panel, btn, open) {
+      panel.classList.toggle('open', open);
+      panel.hidden = !open;
+      btn.classList.toggle('open', open);
+      btn.setAttribute('aria-expanded', String(open));
+    }
+
+    function closePanels() {
+      setPanelOpen(settingsPanel, settingsBtn, false);
+      setPanelOpen(metroPanel, metroPanelBtn, false);
+    }
+
+    settingsBtn.addEventListener('click', () => {
+      const open = settingsPanel.hidden;
+      closePanels();
+      if (open) setPanelOpen(settingsPanel, settingsBtn, true);
+    });
+
+    metroPanelBtn.addEventListener('click', () => {
+      const open = metroPanel.hidden;
+      closePanels();
+      if (open) setPanelOpen(metroPanel, metroPanelBtn, true);
+    });
+
+    function idbRequest(req) {
+      return new Promise((resolve, reject) => {
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    function openDB() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open(DB_NAME, DB_VERSION);
+        req.onupgradeneeded = () => {
+          const db = req.result;
+          if (!db.objectStoreNames.contains('clips')) {
+            db.createObjectStore('clips', { keyPath: 'id' });
+          }
+          if (!db.objectStoreNames.contains('meta')) {
+            db.createObjectStore('meta', { keyPath: 'key' });
+          }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    function getDB() {
+      if (!dbPromise) dbPromise = openDB();
+      return dbPromise;
+    }
+
+    async function metaGet(key) {
+      const db = await getDB();
+      const row = await idbRequest(db.transaction('meta').objectStore('meta').get(key));
+      return row ? row.value : undefined;
+    }
+
+    async function metaSet(key, value) {
+      const db = await getDB();
+      await idbRequest(
+        db.transaction('meta', 'readwrite').objectStore('meta').put({ key, value })
+      );
+    }
+
+    async function saveClip(item) {
+      const db = await getDB();
+      const record = {
+        id: item.id,
+        n: item.n,
+        name: item.name || '',
+        blob: item.blob,
+        duration: item.duration,
+        time: item.time instanceof Date ? item.time.toISOString() : item.time,
+        ext: item.ext,
+        type: item.type,
+        starred: !!item.starred,
+        archived: !!item.archived,
+      };
+      await idbRequest(
+        db.transaction('clips', 'readwrite').objectStore('clips').put(record)
+      );
+    }
+
+    async function deleteClip(id) {
+      const db = await getDB();
+      await idbRequest(
+        db.transaction('clips', 'readwrite').objectStore('clips').delete(id)
+      );
+    }
+
+    async function loadAllClips() {
+      const db = await getDB();
+      return idbRequest(db.transaction('clips').objectStore('clips').getAll());
+    }
+
+    function base64ToBlob(b64, type) {
+      const binary = atob(b64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      return new Blob([bytes], { type: type || 'audio/webm' });
+    }
+
+    async function migrateFromLocalStorage() {
+      const raw = localStorage.getItem(LEGACY_HISTORY_KEY);
+      if (raw) {
+        try {
+          const payload = JSON.parse(raw);
+          const items = Array.isArray(payload.items) ? payload.items : [];
+          for (const saved of items) {
+            if (!saved || !saved.data) continue;
+            const type = saved.type || 'audio/webm';
+            await saveClip({
+              id: saved.id,
+              n: saved.n,
+              name: saved.name || '',
+              blob: base64ToBlob(saved.data, type),
+              duration: Number(saved.duration) || 0,
+              time: saved.time,
+              ext: saved.ext || 'webm',
+              type,
+              starred: !!saved.starred,
+            });
+          }
+          if (payload.takeNum != null) {
+            await metaSet('takeNum', Number(payload.takeNum) || 0);
+          }
+        } catch (err) {
+          console.warn('Could not migrate history from localStorage', err);
+        }
+        localStorage.removeItem(LEGACY_HISTORY_KEY);
+      }
+
+      const metroRaw = localStorage.getItem(LEGACY_METRO_KEY);
+      if (metroRaw) {
+        try {
+          await metaSet('metronome', JSON.parse(metroRaw));
+        } catch (err) {
+          console.warn('Could not migrate metronome prefs', err);
+        }
+        localStorage.removeItem(LEGACY_METRO_KEY);
+      }
+    }
+
+    async function persistTakeNum() {
+      try {
+        await metaSet('takeNum', takeNum);
+      } catch (err) {
+        console.warn('Could not save take number', err);
+      }
+    }
+
+    async function persistMetroPrefs() {
+      try {
+        await metaSet('metronome', {
+          bpm: Number(bpmSlider.value),
+          beats: Number(beatsSlider.value),
+        });
+      } catch (err) {
+        console.warn('Could not save metronome prefs', err);
+      }
+    }
+
+    async function loadMetroPrefs() {
+      try {
+        const prefs = await metaGet('metronome');
+        if (!prefs) return;
+        if (prefs.bpm) bpmSlider.value = prefs.bpm;
+        if (prefs.beats) beatsSlider.value = prefs.beats;
+      } catch (_) {}
+    }
+
+    async function loadHistory() {
+      const records = await loadAllClips();
+      records.sort((a, b) => (b.n || 0) - (a.n || 0));
+      history.length = 0;
+      records.forEach(saved => {
+        if (!saved || !saved.blob) return;
+        history.push({
+          id: saved.id,
+          n: saved.n,
+          name: saved.name || '',
+          url: URL.createObjectURL(saved.blob),
+          blob: saved.blob,
+          duration: Number(saved.duration) || 0,
+          time: new Date(saved.time),
+          ext: saved.ext || 'webm',
+          type: saved.type || saved.blob.type || 'audio/webm',
+          starred: !!saved.starred,
+          archived: !!saved.archived,
+        });
+      });
+      const storedTake = await metaGet('takeNum');
+      takeNum = Number(storedTake) || history.reduce((m, i) => Math.max(m, i.n || 0), 0);
+    }
+
+    async function initStorage() {
+      try {
+        await getDB();
+        await migrateFromLocalStorage();
+        await loadHistory();
+        await loadMetroPrefs();
+      } catch (err) {
+        console.warn('Could not initialize IndexedDB storage', err);
+      }
+      bpmVal.textContent = bpmSlider.value + ' BPM';
+      beatsVal.textContent = beatsSlider.value;
+      renderHistory();
+    }
+
+    function ensureMetroCtx() {
+      if (!metroCtx || metroCtx.state === 'closed') {
+        metroCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (metroCtx.state === 'suspended') metroCtx.resume();
+      return metroCtx;
+    }
+
+    function scheduleMetroClick(when, accent) {
+      const ctx = ensureMetroCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = accent ? 1200 : 900;
+      gain.gain.setValueAtTime(0.0001, when);
+      gain.gain.exponentialRampToValueAtTime(accent ? 0.28 : 0.14, when + 0.002);
+      gain.gain.exponentialRampToValueAtTime(0.0001, when + 0.05);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(when);
+      osc.stop(when + 0.06);
+    }
+
+    function flashMetroBeat(accent) {
+      metroBeat.classList.remove('flash', 'accent');
+      void metroBeat.offsetWidth;
+      metroBeat.classList.add('flash');
+      if (accent) metroBeat.classList.add('accent');
+      clearTimeout(flashMetroBeat._t);
+      flashMetroBeat._t = setTimeout(() => {
+        metroBeat.classList.remove('flash', 'accent');
+      }, 90);
+    }
+
+    function metroTick() {
+      if (!metroOn) return;
+      const ctx = ensureMetroCtx();
+      const bpm = Number(bpmSlider.value) || 120;
+      const interval = 60 / bpm;
+      const beats = Number(beatsSlider.value) || 4;
+
+      while (metroNextTime < ctx.currentTime + 0.1) {
+        const accent = metroBeatIndex % beats === 0;
+        const when = metroNextTime;
+        scheduleMetroClick(when, accent);
+        const delayMs = Math.max(0, (when - ctx.currentTime) * 1000);
+        setTimeout(() => { if (metroOn) flashMetroBeat(accent); }, delayMs);
+        metroNextTime += interval;
+        metroBeatIndex++;
+      }
+      metroTimer = setTimeout(metroTick, 25);
+    }
+
+    function startMetronome() {
+      const ctx = ensureMetroCtx();
+      metroOn = true;
+      metroBeatIndex = 0;
+      metroNextTime = ctx.currentTime + 0.05;
+      metroBtn.classList.add('on');
+      metroBtn.setAttribute('aria-pressed', 'true');
+      metroIcon.textContent = '■';
+      metroLabel.textContent = 'Pause';
+      metroPanelBtn.classList.add('live');
+      clearTimeout(metroTimer);
+      metroTick();
+    }
+
+    function stopMetronome() {
+      metroOn = false;
+      clearTimeout(metroTimer);
+      metroTimer = null;
+      metroBtn.classList.remove('on');
+      metroBtn.setAttribute('aria-pressed', 'false');
+      metroIcon.textContent = '▶';
+      metroLabel.textContent = 'Play';
+      metroPanelBtn.classList.remove('live');
+      metroBeat.classList.remove('flash', 'accent');
+    }
+
+    metroBtn.addEventListener('click', () => {
+      if (metroOn) stopMetronome();
+      else startMetronome();
+    });
+    bpmSlider.addEventListener('input', () => {
+      bpmVal.textContent = bpmSlider.value + ' BPM';
+      persistMetroPrefs();
+    });
+    beatsSlider.addEventListener('input', () => {
+      beatsVal.textContent = beatsSlider.value;
+      persistMetroPrefs();
+    });
 
     function setStatus(state, text) {
       pill.className = 'pill ' + state;
@@ -389,16 +1104,12 @@
     }
 
     function stop() {
+      const wasRecording = recording && mediaRecorder && mediaRecorder.state === 'recording';
       running = false;
-      if (rafId) cancelAnimationFrame(rafId);
-      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-        mediaRecorder.onstop = null;
-        mediaRecorder.stop();
-      }
-      if (micStream) micStream.getTracks().forEach(t => t.stop());
-      if (audioCtx) audioCtx.close();
-      recording = false;
       armed = false;
+      recording = false;
+      if (rafId) cancelAnimationFrame(rafId);
+
       sessionBtn.classList.remove('running');
       sessionIcon.textContent = '▶';
       sessionLabel.textContent = 'Start session';
@@ -407,6 +1118,44 @@
       meterFill.style.width = '0%';
       levelText.textContent = '0%';
       setStatus('idle', 'Stopped');
+
+      if (wasRecording) {
+        // Finalize the in-progress take before tearing down the mic.
+        mediaRecorder.onstop = () => {
+          saveCurrentTake();
+          teardownMedia();
+        };
+        try {
+          mediaRecorder.stop();
+        } catch (err) {
+          teardownMedia();
+        }
+      } else {
+        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+          mediaRecorder.onstop = null;
+          try { mediaRecorder.stop(); } catch (_) {}
+        }
+        teardownMedia();
+      }
+    }
+
+    function teardownMedia() {
+      if (micStream) {
+        micStream.getTracks().forEach(t => t.stop());
+        micStream = null;
+      }
+      if (audioCtx && audioCtx.state !== 'closed') {
+        audioCtx.close();
+        audioCtx = null;
+      }
+    }
+
+    function saveCurrentTake() {
+      const type = (mediaRecorder && mediaRecorder.mimeType) || 'audio/webm';
+      const blob = new Blob(chunks, { type });
+      if (!hasSpoken || blob.size === 0) return;
+      const duration = (performance.now() - recordStartTime) / 1000;
+      addToHistory(blob, type, duration);
     }
 
     function beginRecording() {
@@ -437,6 +1186,7 @@
     }
 
     function handleRecordingStop() {
+      // Session was stopped mid-take — saveCurrentTake already handled it.
       if (!running) return;
       const type = mediaRecorder.mimeType || 'audio/webm';
       const blob = new Blob(chunks, { type });
@@ -450,19 +1200,30 @@
       playback(blob, duration);
     }
 
-    function addToHistory(blob, type, duration) {
+    async function addToHistory(blob, type, duration) {
       takeNum++;
       const ext = type.includes('ogg') ? 'ogg' : (type.includes('mp4') ? 'mp4' : 'webm');
       const item = {
         id: Date.now() + '-' + takeNum,
         n: takeNum,
+        name: '',
         url: URL.createObjectURL(blob),
+        blob,
         duration,
         time: new Date(),
         ext,
+        type,
+        starred: false,
+        archived: false,
       };
       history.unshift(item);
       renderHistory();
+      try {
+        await saveClip(item);
+        await persistTakeNum();
+      } catch (err) {
+        console.warn('Could not save recording to IndexedDB', err);
+      }
     }
 
     function fmtDuration(s) {
@@ -472,20 +1233,211 @@
       return m + ':' + String(sec).padStart(2, '0');
     }
 
+    function clipTitle(item) {
+      const name = (item.name || '').trim();
+      return name || ('Take ' + item.n);
+    }
+
+    function sanitizeFilename(name) {
+      return String(name || '')
+        .trim()
+        .replace(/[\\/:*?"<>|]+/g, '-')
+        .replace(/\s+/g, ' ')
+        .slice(0, 80) || 'take';
+    }
+
+    function visibleHistory() {
+      let items = history.slice();
+      if (historyFilter === 'archived') {
+        items = items.filter(i => i.archived);
+      } else if (historyFilter === 'keepers') {
+        items = items.filter(i => i.starred && !i.archived);
+      } else {
+        items = items.filter(i => !i.archived);
+      }
+      return items.sort((a, b) => {
+        if (a.starred !== b.starred) return a.starred ? -1 : 1;
+        return 0;
+      });
+    }
+
+    function svgIcon(paths) {
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('viewBox', '0 0 24 24');
+      svg.setAttribute('aria-hidden', 'true');
+      svg.innerHTML = paths;
+      return svg;
+    }
+
+    const ICONS = {
+      download: '<path d="M12 3v12"/><path d="M8 11l4 4 4-4"/><path d="M5 19h14"/>',
+      archive: '<path d="M4 7h16"/><path d="M6 7v11a2 2 0 002 2h8a2 2 0 002-2V7"/><path d="M9 11h6"/><path d="M10 4h4l1 3H9l1-3z"/>',
+      unarchive: '<path d="M4 7h16"/><path d="M6 7v11a2 2 0 002 2h8a2 2 0 002-2V7"/><path d="M12 17V11"/><path d="M9 13l3-3 3 3"/><path d="M10 4h4l1 3H9l1-3z"/>',
+      trash: '<path d="M4 7h16"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M6 7l1 12a2 2 0 002 2h6a2 2 0 002-2l1-12"/><path d="M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2"/>',
+    };
+
+    function makeIconBtn(className, title, iconKey) {
+      const btn = document.createElement('button');
+      btn.className = 'clip__btn' + (className ? ' ' + className : '');
+      btn.title = title;
+      btn.appendChild(svgIcon(ICONS[iconKey]));
+      return btn;
+    }
+
+    function toggleStar(item) {
+      item.starred = !item.starred;
+      renderHistory();
+      saveClip(item).catch(err => {
+        console.warn('Could not update star in IndexedDB', err);
+      });
+    }
+
+    function toggleArchive(item) {
+      item.archived = !item.archived;
+      if (historyAudio && nowPlayingEl && nowPlayingEl.dataset.id === item.id) {
+        historyAudio.pause();
+      }
+      renderHistory();
+      saveClip(item).catch(err => {
+        console.warn('Could not update archive in IndexedDB', err);
+      });
+    }
+
+    function askConfirm(message, confirmLabel) {
+      return new Promise(resolve => {
+        confirmMsg.textContent = message;
+        confirmOk.textContent = confirmLabel || 'Delete';
+        confirmDialog.hidden = false;
+        confirmOk.focus();
+
+        const finish = (ok) => {
+          confirmDialog.hidden = true;
+          confirmOk.removeEventListener('click', onOk);
+          confirmCancel.removeEventListener('click', onCancel);
+          confirmBackdrop.removeEventListener('click', onCancel);
+          document.removeEventListener('keydown', onKey);
+          resolve(ok);
+        };
+        const onOk = () => finish(true);
+        const onCancel = () => finish(false);
+        const onKey = (e) => {
+          if (e.key === 'Escape') finish(false);
+          if (e.key === 'Enter') finish(true);
+        };
+
+        confirmOk.addEventListener('click', onOk);
+        confirmCancel.addEventListener('click', onCancel);
+        confirmBackdrop.addEventListener('click', onCancel);
+        document.addEventListener('keydown', onKey);
+      });
+    }
+
+    async function removeTake(item) {
+      const ok = await askConfirm(
+        'Delete "' + clipTitle(item) + '"? This cannot be undone.',
+        'Delete'
+      );
+      if (!ok) return;
+
+      if (historyAudio && nowPlayingEl && nowPlayingEl.dataset.id === item.id) {
+        historyAudio.pause();
+      }
+      URL.revokeObjectURL(item.url);
+      const idx = history.findIndex(h => h.id === item.id);
+      if (idx >= 0) history.splice(idx, 1);
+      if (history.length === 0) takeNum = 0;
+      renderHistory();
+      Promise.all([deleteClip(item.id), persistTakeNum()]).catch(err => {
+        console.warn('Could not delete take from IndexedDB', err);
+      });
+    }
+
+    function startRename(item, titleEl) {
+      if (titleEl.parentElement.querySelector('.clip__rename')) return;
+
+      const input = document.createElement('input');
+      input.className = 'clip__rename';
+      input.type = 'text';
+      input.maxLength = 80;
+      input.value = (item.name || '').trim() || ('Take ' + item.n);
+      input.setAttribute('aria-label', 'Rename take');
+
+      let finished = false;
+      const finish = (save) => {
+        if (finished) return;
+        finished = true;
+        if (save) {
+          const next = input.value.trim();
+          const fallback = 'Take ' + item.n;
+          item.name = (!next || next === fallback) ? '' : next;
+          saveClip(item).catch(err => {
+            console.warn('Could not save rename to IndexedDB', err);
+          });
+        }
+        titleEl.textContent = clipTitle(item);
+        input.replaceWith(titleEl);
+      };
+
+      titleEl.replaceWith(input);
+      input.focus();
+      input.select();
+
+      input.addEventListener('keydown', e => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          finish(true);
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          finish(false);
+        }
+      });
+      input.addEventListener('blur', () => finish(true));
+    }
+
     function renderHistory() {
-      historyCount.textContent = '(' + history.length + ')';
+      const active = history.filter(i => !i.archived);
+      const archived = history.filter(i => i.archived);
+      const starredActive = active.filter(i => i.starred);
+      const items = visibleHistory();
+
+      const count = historyFilter === 'archived'
+        ? archived.length
+        : historyFilter === 'keepers'
+          ? starredActive.length
+          : active.length;
+      historyCount.textContent = '(' + count + ')';
+      historyTitle.textContent = historyFilter === 'archived'
+        ? 'Archived'
+        : historyFilter === 'keepers'
+          ? 'Keepers'
+          : 'History';
+
       clearBtn.disabled = history.length === 0;
 
-      if (history.length === 0) {
-        historyList.innerHTML = '<div class="history__empty">No recordings yet.</div>';
+      keepersBtn.classList.toggle('on', historyFilter === 'keepers');
+      keepersBtn.disabled = starredActive.length === 0 && historyFilter !== 'keepers';
+      archivedBtn.classList.toggle('on', historyFilter === 'archived');
+      archivedBtn.disabled = archived.length === 0 && historyFilter !== 'archived';
+      archivedBtn.textContent = 'Archived';
+      archivedBtn.title = historyFilter === 'archived'
+        ? 'Leave archived view'
+        : 'Show archived takes';
+
+      if (items.length === 0) {
+        const emptyMsg = historyFilter === 'keepers'
+          ? 'No starred keepers yet.'
+          : historyFilter === 'archived'
+            ? 'No archived takes.'
+            : 'No recordings yet.';
+        historyList.innerHTML = '<div class="history__empty">' + emptyMsg + '</div>';
         nowPlayingEl = null;
         return;
       }
 
       historyList.innerHTML = '';
-      history.forEach(item => {
+      items.forEach(item => {
         const row = document.createElement('div');
-        row.className = 'clip';
+        row.className = 'clip' + (item.starred ? ' starred' : '');
         row.dataset.id = item.id;
 
         const playBtn = document.createElement('button');
@@ -495,27 +1447,60 @@
 
         const meta = document.createElement('div');
         meta.className = 'clip__meta';
-        meta.innerHTML =
-          '<div class="clip__title">Take ' + item.n + '</div>' +
-          '<div class="clip__sub">' + fmtDuration(item.duration) + ' · ' +
-          item.time.toLocaleTimeString() + '</div>';
 
-        const dlBtn = document.createElement('button');
-        dlBtn.className = 'clip__btn';
-        dlBtn.textContent = '⬇';
-        dlBtn.title = 'Download';
+        const titleEl = document.createElement('div');
+        titleEl.className = 'clip__title';
+        titleEl.textContent = clipTitle(item);
+        titleEl.title = 'Click to rename';
+
+        const subEl = document.createElement('div');
+        subEl.className = 'clip__sub';
+        subEl.textContent = fmtDuration(item.duration) + ' · ' + item.time.toLocaleTimeString();
+
+        meta.appendChild(titleEl);
+        meta.appendChild(subEl);
+
+        const actions = document.createElement('div');
+        actions.className = 'clip__actions';
+
+        const more = document.createElement('div');
+        more.className = 'clip__more';
+
+        const archiveBtn = makeIconBtn(
+          'archive' + (item.archived ? ' on' : ''),
+          item.archived ? 'Unarchive' : 'Archive',
+          item.archived ? 'unarchive' : 'archive'
+        );
+        const delBtn = makeIconBtn('danger', 'Delete', 'trash');
+
+        const starBtn = document.createElement('button');
+        starBtn.className = 'clip__btn primary star' + (item.starred ? ' on' : '');
+        starBtn.textContent = item.starred ? '★' : '☆';
+        starBtn.title = item.starred ? 'Unstar keeper' : 'Star as keeper';
+
+        const dlBtn = makeIconBtn('primary', 'Download', 'download');
 
         playBtn.addEventListener('click', () => playClip(item, row, playBtn));
+        titleEl.addEventListener('click', () => startRename(item, titleEl));
+        starBtn.addEventListener('click', () => toggleStar(item));
+        archiveBtn.addEventListener('click', () => toggleArchive(item));
+        delBtn.addEventListener('click', () => removeTake(item));
         dlBtn.addEventListener('click', () => {
           const a = document.createElement('a');
           a.href = item.url;
-          a.download = 'repeat-take-' + item.n + '.' + item.ext;
+          a.download = sanitizeFilename(clipTitle(item)) + '.' + item.ext;
           a.click();
         });
 
+        more.appendChild(archiveBtn);
+        more.appendChild(delBtn);
+        actions.appendChild(more);
+        actions.appendChild(starBtn);
+        actions.appendChild(dlBtn);
+
         row.appendChild(playBtn);
         row.appendChild(meta);
-        row.appendChild(dlBtn);
+        row.appendChild(actions);
         historyList.appendChild(row);
       });
     }
@@ -544,12 +1529,62 @@
       historyAudio.play().catch(reset);
     }
 
-    clearBtn.addEventListener('click', () => {
-      if (historyAudio) historyAudio.pause();
-      history.forEach(item => URL.revokeObjectURL(item.url));
-      history.length = 0;
+    function setMenuOpen(open) {
+      menuDropdown.classList.toggle('open', open);
+      menuDropdown.hidden = !open;
+      menuBtn.classList.toggle('open', open);
+      menuBtn.setAttribute('aria-expanded', String(open));
+    }
+
+    menuBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      setMenuOpen(menuDropdown.hidden);
+    });
+
+    document.addEventListener('click', e => {
+      if (!menuDropdown.hidden && !document.getElementById('historyMenu').contains(e.target)) {
+        setMenuOpen(false);
+      }
+    });
+
+    keepersBtn.addEventListener('click', () => {
+      historyFilter = historyFilter === 'keepers' ? 'active' : 'keepers';
+      setMenuOpen(false);
       renderHistory();
     });
+
+    archivedBtn.addEventListener('click', () => {
+      historyFilter = historyFilter === 'archived' ? 'active' : 'archived';
+      setMenuOpen(false);
+      renderHistory();
+    });
+
+    clearBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      setMenuOpen(false);
+      if (history.length === 0) return;
+      const ok = await askConfirm(
+        'Clear all recordings? This permanently deletes every take, including keepers and archived ones.',
+        'Clear all'
+      );
+      if (!ok) return;
+
+      if (historyAudio) historyAudio.pause();
+      const remove = history.slice();
+      remove.forEach(item => URL.revokeObjectURL(item.url));
+      history.length = 0;
+      takeNum = 0;
+      historyFilter = 'active';
+      renderHistory();
+      try {
+        await Promise.all(remove.map(item => deleteClip(item.id)));
+        await persistTakeNum();
+      } catch (err) {
+        console.warn('Could not clear recordings from IndexedDB', err);
+      }
+    });
+
+    initStorage();
 
     function playback(blob, measuredDuration) {
       recording = false;
