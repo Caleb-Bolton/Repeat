@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Repeat — Voice Loop</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --panel: #1a1d29;
+      --accent: #5b8cff;
+      --accent-2: #ff5b8c;
+      --text: #e8eaf0;
+      --muted: #8a90a6;
+      --ok: #3ddc84;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(1200px 600px at 50% -10%, #1c2233, var(--bg));
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .card {
+      width: 100%;
+      max-width: 460px;
+      background: linear-gradient(180deg, #1d2130, var(--panel));
+      border: 1px solid #272b3b;
+      border-radius: 20px;
+      padding: 28px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.45);
+    }
+    h1 {
+      margin: 0 0 4px;
+      font-size: 24px;
+      letter-spacing: 0.3px;
+    }
+    p.sub {
+      margin: 0 0 22px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .status {
+      display: flex;
+      align-items: center;
+      margin-bottom: 18px;
+      min-height: 32px;
+    }
+    /* Animated phase pill: shows what the loop is currently doing. */
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px 6px 12px;
+      border-radius: 999px;
+      font-size: 14px;
+      font-weight: 600;
+      border: 1px solid transparent;
+      background: #1a1d29;
+      color: var(--muted);
+      transition: color 0.25s, background 0.25s, border-color 0.25s;
+    }
+    .pill__dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: currentColor;
+      flex: none;
+    }
+    .pill.idle {
+      color: var(--muted);
+      background: #1a1d29;
+      border-color: #272b3b;
+    }
+    .pill.listening {
+      color: var(--ok);
+      background: rgba(61,220,132,0.10);
+      border-color: rgba(61,220,132,0.35);
+    }
+    .pill.recording {
+      color: var(--accent-2);
+      background: rgba(255,91,140,0.12);
+      border-color: rgba(255,91,140,0.4);
+    }
+    .pill.recording .pill__dot { animation: pulse 1s ease-in-out infinite; }
+    .pill.playing {
+      color: var(--accent);
+      background: rgba(91,140,255,0.12);
+      border-color: rgba(91,140,255,0.4);
+    }
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 0 0 currentColor; opacity: 1; }
+      50% { box-shadow: 0 0 0 5px rgba(255,91,140,0); opacity: 0.5; }
+    }
+
+    .meter {
+      position: relative;
+      height: 14px;
+      border-radius: 8px;
+      background: #11131c;
+      overflow: hidden;
+      border: 1px solid #272b3b;
+      margin-bottom: 6px;
+    }
+    .meter__fill {
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 0%;
+      background: linear-gradient(90deg, var(--ok), var(--accent));
+      transition: width 0.05s linear;
+    }
+    .meter.playback .meter__fill {
+      background: linear-gradient(90deg, var(--accent), var(--accent-2));
+      transition: none;
+    }
+    .meter.playback .meter__threshold { display: none; }
+    .meter__threshold {
+      position: absolute;
+      top: -2px; bottom: -2px;
+      width: 2px;
+      background: var(--accent-2);
+    }
+    .meter-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 20px;
+    }
+
+    .controls {
+      display: flex;
+      margin-bottom: 22px;
+    }
+    button {
+      border: none;
+      cursor: pointer;
+      transition: transform 0.05s, opacity 0.2s, background 0.2s;
+    }
+    button:active { transform: scale(0.98); }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* Single session toggle: starts / stops the whole loop. */
+    .session-btn {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 15px;
+      font-size: 16px;
+      font-weight: 700;
+      border-radius: 14px;
+      background: var(--accent);
+      color: #fff;
+    }
+    .session-btn .session-btn__icon { font-size: 14px; line-height: 1; }
+    .session-btn.running {
+      background: #2a2f42;
+      color: var(--text);
+    }
+
+    .settings { display: grid; gap: 16px; }
+    .row { display: grid; gap: 6px; }
+    .row label {
+      font-size: 13px;
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+    }
+    .row label b { color: var(--text); font-weight: 600; }
+    input[type="range"] { width: 100%; accent-color: var(--accent); }
+
+    .history {
+      margin-top: 24px;
+      border-top: 1px solid #272b3b;
+      padding-top: 18px;
+    }
+    .history__head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .history__head h2 {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 700;
+    }
+    .history__head span { color: var(--muted); font-size: 12px; }
+    .clear-btn {
+      flex: none;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      border-radius: 8px;
+      background: #2a2f42;
+      color: var(--text);
+    }
+    .clear-btn:disabled { opacity: 0.4; }
+    .history__list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 280px;
+      overflow-y: auto;
+    }
+    .history__empty {
+      color: var(--muted);
+      font-size: 13px;
+      text-align: center;
+      padding: 12px 0;
+    }
+    .clip {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: #11131c;
+      border: 1px solid #272b3b;
+      border-radius: 10px;
+      padding: 8px 10px;
+    }
+    .clip.playing { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(91,140,255,0.2); }
+    .clip__play {
+      flex: none;
+      width: 34px; height: 34px;
+      padding: 0;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #fff;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .clip__meta { flex: 1; min-width: 0; }
+    .clip__title { font-size: 13px; font-weight: 600; }
+    .clip__sub { font-size: 11px; color: var(--muted); }
+    .clip__btn {
+      flex: none;
+      width: 32px; height: 32px;
+      padding: 0;
+      border-radius: 8px;
+      background: #2a2f42;
+      color: var(--text);
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>🔁 Repeat</h1>
+    <p class="sub">
+      Records your voice, waits for a long silence, plays it back, then
+      starts recording again — looping forever.
+    </p>
+
+    <div class="status">
+      <span class="pill idle" id="pill">
+        <span class="pill__dot"></span>
+        <span id="statusText">Idle</span>
+      </span>
+    </div>
+
+    <div class="meter" id="meter">
+      <div class="meter__fill" id="meterFill"></div>
+      <div class="meter__threshold" id="meterThreshold"></div>
+    </div>
+    <div class="meter-label">
+      <span id="meterLabel">level</span>
+      <span id="levelText">0%</span>
+    </div>
+
+    <div class="controls">
+      <button class="session-btn" id="sessionBtn">
+        <span class="session-btn__icon" id="sessionIcon">▶</span>
+        <span id="sessionLabel">Start session</span>
+      </button>
+    </div>
+
+    <div class="settings">
+      <div class="row">
+        <label>Silence threshold <b id="threshVal">8%</b></label>
+        <input type="range" id="thresh" min="1" max="40" value="8" />
+      </div>
+      <div class="row">
+        <label>Silence duration before playback <b id="durVal">1.5s</b></label>
+        <input type="range" id="dur" min="300" max="4000" step="100" value="1500" />
+      </div>
+    </div>
+
+    <div class="history">
+      <div class="history__head">
+        <h2>History <span id="historyCount">(0)</span></h2>
+        <button class="clear-btn" id="clearBtn" disabled>Clear all</button>
+      </div>
+      <div class="history__list" id="historyList">
+        <div class="history__empty" id="historyEmpty">No recordings yet.</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const sessionBtn = document.getElementById('sessionBtn');
+    const sessionIcon = document.getElementById('sessionIcon');
+    const sessionLabel = document.getElementById('sessionLabel');
+    const pill = document.getElementById('pill');
+    const statusText = document.getElementById('statusText');
+    const meter = document.getElementById('meter');
+    const meterFill = document.getElementById('meterFill');
+    const meterThreshold = document.getElementById('meterThreshold');
+    const meterLabel = document.getElementById('meterLabel');
+    const levelText = document.getElementById('levelText');
+    const threshSlider = document.getElementById('thresh');
+    const durSlider = document.getElementById('dur');
+    const threshVal = document.getElementById('threshVal');
+    const durVal = document.getElementById('durVal');
+    const historyList = document.getElementById('historyList');
+    const historyEmpty = document.getElementById('historyEmpty');
+    const historyCount = document.getElementById('historyCount');
+    const clearBtn = document.getElementById('clearBtn');
+
+    let audioCtx, analyser, sourceNode, micStream;
+    let mediaRecorder, chunks = [];
+    let rafId = null;
+    let running = false;
+    let recording = false;
+    let armed = false;            // listening for speech, recorder not started yet
+
+    // Silence-detection state
+    let hasSpoken = false;        // did we hear sound during this take?
+    let silenceStart = null;      // timestamp when silence began
+    let recordStartTime = 0;      // when the current take began
+
+    // Recording history
+    const history = [];           // { id, url, blob, duration, time, ext }
+    let takeNum = 0;
+    let nowPlayingEl = null;
+
+    function setStatus(state, text) {
+      pill.className = 'pill ' + state;
+      statusText.textContent = text;
+    }
+
+    threshSlider.addEventListener('input', () => {
+      threshVal.textContent = threshSlider.value + '%';
+      meterThreshold.style.left = threshSlider.value + '%';
+    });
+    durSlider.addEventListener('input', () => {
+      durVal.textContent = (durSlider.value / 1000).toFixed(1) + 's';
+    });
+    meterThreshold.style.left = threshSlider.value + '%';
+
+    sessionBtn.addEventListener('click', () => {
+      if (running) stop();
+      else start();
+    });
+
+    async function start() {
+      try {
+        micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch (err) {
+        setStatus('idle', 'Microphone blocked');
+        return;
+      }
+
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      sourceNode = audioCtx.createMediaStreamSource(micStream);
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 1024;
+      sourceNode.connect(analyser);
+
+      running = true;
+      sessionBtn.classList.add('running');
+      sessionIcon.textContent = '■';
+      sessionLabel.textContent = 'Stop session';
+
+      beginRecording();
+      monitor();
+    }
+
+    function stop() {
+      running = false;
+      if (rafId) cancelAnimationFrame(rafId);
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.onstop = null;
+        mediaRecorder.stop();
+      }
+      if (micStream) micStream.getTracks().forEach(t => t.stop());
+      if (audioCtx) audioCtx.close();
+      recording = false;
+      armed = false;
+      sessionBtn.classList.remove('running');
+      sessionIcon.textContent = '▶';
+      sessionLabel.textContent = 'Start session';
+      meter.classList.remove('playback');
+      meterLabel.textContent = 'level';
+      meterFill.style.width = '0%';
+      levelText.textContent = '0%';
+      setStatus('idle', 'Stopped');
+    }
+
+    function beginRecording() {
+      // Arm first: wait for audio past the threshold before we actually start
+      // recording, so each take starts at the moment of first speech.
+      if (!running) return;
+      chunks = [];
+      hasSpoken = false;
+      silenceStart = null;
+      armed = true;
+      recording = false;
+      setStatus('listening', 'Listening');
+    }
+
+    function startActualRecording() {
+      armed = false;
+      hasSpoken = true;
+      silenceStart = null;
+      mediaRecorder = new MediaRecorder(micStream);
+      mediaRecorder.ondataavailable = e => {
+        if (e.data.size > 0) chunks.push(e.data);
+      };
+      mediaRecorder.onstop = handleRecordingStop;
+      mediaRecorder.start();
+      recordStartTime = performance.now();
+      recording = true;
+      setStatus('recording', 'Recording');
+    }
+
+    function handleRecordingStop() {
+      if (!running) return;
+      const type = mediaRecorder.mimeType || 'audio/webm';
+      const blob = new Blob(chunks, { type });
+      if (!hasSpoken || blob.size === 0) {
+        // Nothing was said; just start a fresh take.
+        beginRecording();
+        return;
+      }
+      const duration = (performance.now() - recordStartTime) / 1000;
+      addToHistory(blob, type, duration);
+      playback(blob, duration);
+    }
+
+    function addToHistory(blob, type, duration) {
+      takeNum++;
+      const ext = type.includes('ogg') ? 'ogg' : (type.includes('mp4') ? 'mp4' : 'webm');
+      const item = {
+        id: Date.now() + '-' + takeNum,
+        n: takeNum,
+        url: URL.createObjectURL(blob),
+        duration,
+        time: new Date(),
+        ext,
+      };
+      history.unshift(item);
+      renderHistory();
+    }
+
+    function fmtDuration(s) {
+      if (!isFinite(s) || s < 0) s = 0;
+      const m = Math.floor(s / 60);
+      const sec = Math.floor(s % 60);
+      return m + ':' + String(sec).padStart(2, '0');
+    }
+
+    function renderHistory() {
+      historyCount.textContent = '(' + history.length + ')';
+      clearBtn.disabled = history.length === 0;
+
+      if (history.length === 0) {
+        historyList.innerHTML = '<div class="history__empty">No recordings yet.</div>';
+        nowPlayingEl = null;
+        return;
+      }
+
+      historyList.innerHTML = '';
+      history.forEach(item => {
+        const row = document.createElement('div');
+        row.className = 'clip';
+        row.dataset.id = item.id;
+
+        const playBtn = document.createElement('button');
+        playBtn.className = 'clip__play';
+        playBtn.textContent = '▶';
+        playBtn.title = 'Play';
+
+        const meta = document.createElement('div');
+        meta.className = 'clip__meta';
+        meta.innerHTML =
+          '<div class="clip__title">Take ' + item.n + '</div>' +
+          '<div class="clip__sub">' + fmtDuration(item.duration) + ' · ' +
+          item.time.toLocaleTimeString() + '</div>';
+
+        const dlBtn = document.createElement('button');
+        dlBtn.className = 'clip__btn';
+        dlBtn.textContent = '⬇';
+        dlBtn.title = 'Download';
+
+        playBtn.addEventListener('click', () => playClip(item, row, playBtn));
+        dlBtn.addEventListener('click', () => {
+          const a = document.createElement('a');
+          a.href = item.url;
+          a.download = 'repeat-take-' + item.n + '.' + item.ext;
+          a.click();
+        });
+
+        row.appendChild(playBtn);
+        row.appendChild(meta);
+        row.appendChild(dlBtn);
+        historyList.appendChild(row);
+      });
+    }
+
+    let historyAudio = null;
+    function playClip(item, row, playBtn) {
+      // Toggle off if this clip is already playing.
+      if (historyAudio && nowPlayingEl === row) {
+        historyAudio.pause();
+        return;
+      }
+      if (historyAudio) historyAudio.pause();
+
+      historyAudio = new Audio(item.url);
+      nowPlayingEl = row;
+      row.classList.add('playing');
+      playBtn.textContent = '❚❚';
+
+      const reset = () => {
+        row.classList.remove('playing');
+        playBtn.textContent = '▶';
+        if (nowPlayingEl === row) nowPlayingEl = null;
+      };
+      historyAudio.onended = reset;
+      historyAudio.onpause = reset;
+      historyAudio.play().catch(reset);
+    }
+
+    clearBtn.addEventListener('click', () => {
+      if (historyAudio) historyAudio.pause();
+      history.forEach(item => URL.revokeObjectURL(item.url));
+      history.length = 0;
+      renderHistory();
+    });
+
+    function playback(blob, measuredDuration) {
+      recording = false;
+      setStatus('playing', 'Playing');
+
+      // Turn the meter into a playback progress bar.
+      meter.classList.add('playback');
+      meterLabel.textContent = 'playback';
+      meterFill.style.width = '0%';
+      levelText.textContent = '0:00';
+
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+
+      const totalFallback = measuredDuration || 0;
+      const total = () => (isFinite(audio.duration) && audio.duration > 0)
+        ? audio.duration : totalFallback;
+
+      // Drive the progress bar every animation frame for smooth, continuous motion.
+      let progressRaf = null;
+      const updateProgress = () => {
+        const t = total();
+        const pct = t > 0 ? Math.min(100, (audio.currentTime / t) * 100) : 0;
+        meterFill.style.width = pct + '%';
+        levelText.textContent = fmtDuration(audio.currentTime) + ' / ' + fmtDuration(t);
+        progressRaf = requestAnimationFrame(updateProgress);
+      };
+      progressRaf = requestAnimationFrame(updateProgress);
+
+      const finish = () => {
+        if (progressRaf) cancelAnimationFrame(progressRaf);
+        URL.revokeObjectURL(url);
+        // Restore the meter to its level-meter appearance.
+        meter.classList.remove('playback');
+        meterLabel.textContent = 'level';
+        meterFill.style.width = '0%';
+        levelText.textContent = '0%';
+        if (running) {
+          beginRecording();
+        }
+      };
+
+      audio.onended = finish;
+      audio.onerror = finish;
+      audio.play().catch(err => {
+        finish();
+      });
+    }
+
+    function monitor() {
+      const data = new Uint8Array(analyser.fftSize);
+
+      const tick = () => {
+        if (!running) return;
+        rafId = requestAnimationFrame(tick);
+
+        analyser.getByteTimeDomainData(data);
+        // Compute RMS volume (0..1)
+        let sumSq = 0;
+        for (let i = 0; i < data.length; i++) {
+          const v = (data[i] - 128) / 128;
+          sumSq += v * v;
+        }
+        const rms = Math.sqrt(sumSq / data.length);
+        const levelPct = Math.min(100, Math.round(rms * 300));
+        const threshPct = Number(threshSlider.value);
+
+        // Update the level meter while listening (armed) or recording.
+        if (armed || recording) {
+          meterFill.style.width = levelPct + '%';
+          levelText.textContent = levelPct + '%';
+
+          const isLoud = levelPct >= threshPct;
+
+          if (armed) {
+            // Waiting for the first sound past the threshold to begin recording.
+            if (isLoud) startActualRecording();
+          } else if (recording) {
+            if (isLoud) {
+              silenceStart = null;
+            } else {
+              // We're in silence after having heard speech.
+              if (silenceStart === null) {
+                silenceStart = performance.now();
+              } else if (performance.now() - silenceStart >= Number(durSlider.value)) {
+                // Long enough silence — stop and play back.
+                if (mediaRecorder && mediaRecorder.state === 'recording') {
+                  recording = false;
+                  mediaRecorder.stop();
+                }
+              }
+            }
+          }
+        }
+      };
+      tick();
+    }
+  </script>
+</body>
+</html>
