@@ -1256,8 +1256,10 @@
         items = items.filter(i => !i.archived);
       }
       return items.sort((a, b) => {
-        if (a.starred !== b.starred) return a.starred ? -1 : 1;
-        return 0;
+        const tb = b.time instanceof Date ? b.time.getTime() : Number(b.time) || 0;
+        const ta = a.time instanceof Date ? a.time.getTime() : Number(a.time) || 0;
+        if (tb !== ta) return tb - ta;
+        return (b.n || 0) - (a.n || 0);
       });
     }
 
