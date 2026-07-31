@@ -167,6 +167,35 @@
       color: var(--text);
     }
 
+    .playback-controls {
+      display: none;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .playback-controls.open { display: flex; }
+    .playback-btn {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px;
+      font-size: 14px;
+      font-weight: 700;
+      border-radius: 12px;
+      background: #2a2f42;
+      color: var(--text);
+      box-shadow: inset 0 0 0 1px #3a4158;
+    }
+    .playback-btn:hover {
+      background: #32384f;
+    }
+    .playback-btn.primary {
+      background: rgba(91,140,255,0.18);
+      color: var(--accent);
+      box-shadow: inset 0 0 0 1px rgba(91,140,255,0.45);
+    }
+
     .settings-btn {
       flex: none;
       width: 52px;
@@ -595,7 +624,7 @@
   <div class="card">
     <h1>🔁 Repeat</h1>
     <p class="sub">
-      Records your voice, waits for a long silence, plays it back, then
+      Records your voice, waits for silence, plays it back, then
       starts recording again — looping forever.
     </p>
 
@@ -613,6 +642,17 @@
     <div class="meter-label">
       <span id="meterLabel">level</span>
       <span id="levelText">0%</span>
+    </div>
+
+    <div class="playback-controls" id="playbackControls" hidden>
+      <button class="playback-btn primary" id="playbackPauseBtn" type="button" title="Pause playback">
+        <span id="playbackPauseIcon">❚❚</span>
+        <span id="playbackPauseLabel">Pause</span>
+      </button>
+      <button class="playback-btn" id="playbackSkipBtn" type="button" title="Skip playback">
+        <span>⏭</span>
+        <span>Skip</span>
+      </button>
     </div>
 
     <div class="controls">
@@ -696,6 +736,11 @@
     const meterThreshold = document.getElementById('meterThreshold');
     const meterLabel = document.getElementById('meterLabel');
     const levelText = document.getElementById('levelText');
+    const playbackControls = document.getElementById('playbackControls');
+    const playbackPauseBtn = document.getElementById('playbackPauseBtn');
+    const playbackPauseIcon = document.getElementById('playbackPauseIcon');
+    const playbackPauseLabel = document.getElementById('playbackPauseLabel');
+    const playbackSkipBtn = document.getElementById('playbackSkipBtn');
     const threshSlider = document.getElementById('thresh');
     const durSlider = document.getElementById('dur');
     const threshVal = document.getElementById('threshVal');
@@ -748,8 +793,17 @@
     const history = [];           // { id, url, blob, duration, time, ext, type, starred, archived, name }
     let takeNum = 0;
     let nowPlayingEl = null;
+    let historyAudio = null;
     let historyFilter = 'active'; // 'active' | 'keepers' | 'archived'
     let dbPromise = null;
+
+    // Auto (loop) playback
+    let loopAudio = null;
+    let loopUrl = null;
+    let loopProgressRaf = null;
+    let loopPaused = false;
+    let loopMeasuredDuration = 0;
+    let resumeAfterHistory = false;
 
     // Metronome
     let metroCtx = null;
@@ -1108,7 +1162,11 @@
       running = false;
       armed = false;
       recording = false;
+      resumeAfterHistory = false;
       if (rafId) cancelAnimationFrame(rafId);
+
+      stopLoopPlayback({ resumeListening: false });
+      stopHistoryPlayback();
 
       sessionBtn.classList.remove('running');
       sessionIcon.textContent = '▶';
@@ -1297,7 +1355,8 @@
     function toggleArchive(item) {
       item.archived = !item.archived;
       if (historyAudio && nowPlayingEl && nowPlayingEl.dataset.id === item.id) {
-        historyAudio.pause();
+        stopHistoryPlayback();
+        maybeResumeAfterHistory();
       }
       renderHistory();
       saveClip(item).catch(err => {
@@ -1342,7 +1401,8 @@
       if (!ok) return;
 
       if (historyAudio && nowPlayingEl && nowPlayingEl.dataset.id === item.id) {
-        historyAudio.pause();
+        stopHistoryPlayback();
+        maybeResumeAfterHistory();
       }
       URL.revokeObjectURL(item.url);
       const idx = history.findIndex(h => h.id === item.id);
@@ -1507,27 +1567,173 @@
       });
     }
 
-    let historyAudio = null;
+    function clearLoopProgress() {
+      if (loopProgressRaf) {
+        cancelAnimationFrame(loopProgressRaf);
+        loopProgressRaf = null;
+      }
+    }
+
+    function setPlaybackControlsOpen(open) {
+      playbackControls.classList.toggle('open', open);
+      playbackControls.hidden = !open;
+    }
+
+    function updatePauseBtn() {
+      if (loopPaused) {
+        playbackPauseIcon.textContent = '▶';
+        playbackPauseLabel.textContent = 'Resume';
+        playbackPauseBtn.title = 'Resume playback';
+      } else {
+        playbackPauseIcon.textContent = '❚❚';
+        playbackPauseLabel.textContent = 'Pause';
+        playbackPauseBtn.title = 'Pause playback';
+      }
+    }
+
+    function resetMeterFromPlayback() {
+      meter.classList.remove('playback');
+      meterLabel.textContent = 'level';
+      meterFill.style.width = '0%';
+      levelText.textContent = '0%';
+    }
+
+    function stopHistoryPlayback() {
+      if (!historyAudio) return;
+      const audio = historyAudio;
+      const row = nowPlayingEl;
+      historyAudio = null;
+      nowPlayingEl = null;
+      audio.onended = null;
+      audio.onpause = null;
+      audio.onerror = null;
+      try { audio.pause(); } catch (_) {}
+      if (row) {
+        row.classList.remove('playing');
+        const btn = row.querySelector('.clip__play');
+        if (btn) {
+          btn.textContent = '▶';
+          btn.title = 'Play';
+        }
+      }
+    }
+
+    function maybeResumeAfterHistory() {
+      if (!resumeAfterHistory) return;
+      resumeAfterHistory = false;
+      if (running && !loopAudio && !recording && !armed) {
+        beginRecording();
+      }
+    }
+
+    function stopLoopPlayback({ resumeListening = false } = {}) {
+      clearLoopProgress();
+      setPlaybackControlsOpen(false);
+      loopPaused = false;
+      updatePauseBtn();
+
+      if (loopAudio) {
+        const audio = loopAudio;
+        loopAudio = null;
+        audio.onended = null;
+        audio.onerror = null;
+        try { audio.pause(); } catch (_) {}
+      }
+      if (loopUrl) {
+        URL.revokeObjectURL(loopUrl);
+        loopUrl = null;
+      }
+      resetMeterFromPlayback();
+
+      if (resumeListening && running && !recording && !armed) {
+        beginRecording();
+      }
+    }
+
+    function toggleLoopPause() {
+      if (!loopAudio) return;
+      if (loopPaused) {
+        const audio = loopAudio;
+        audio.play().then(() => {
+          if (loopAudio !== audio) return;
+          loopPaused = false;
+          setStatus('playing', 'Playing');
+          updatePauseBtn();
+          startLoopProgress(audio, loopMeasuredDuration);
+        }).catch(() => {
+          if (loopAudio === audio) stopLoopPlayback({ resumeListening: true });
+        });
+      } else {
+        loopPaused = true;
+        loopAudio.pause();
+        clearLoopProgress();
+        setStatus('playing', 'Paused');
+        updatePauseBtn();
+      }
+    }
+
+    function skipLoopPlayback() {
+      if (!loopAudio) return;
+      stopLoopPlayback({ resumeListening: true });
+    }
+
+    function startLoopProgress(audio, measuredDuration) {
+      clearLoopProgress();
+      const totalFallback = measuredDuration || 0;
+      const total = () => (isFinite(audio.duration) && audio.duration > 0)
+        ? audio.duration : totalFallback;
+
+      const updateProgress = () => {
+        if (!loopAudio || loopPaused) return;
+        const t = total();
+        const pct = t > 0 ? Math.min(100, (audio.currentTime / t) * 100) : 0;
+        meterFill.style.width = pct + '%';
+        levelText.textContent = fmtDuration(audio.currentTime) + ' / ' + fmtDuration(t);
+        loopProgressRaf = requestAnimationFrame(updateProgress);
+      };
+      loopProgressRaf = requestAnimationFrame(updateProgress);
+    }
+
     function playClip(item, row, playBtn) {
       // Toggle off if this clip is already playing.
       if (historyAudio && nowPlayingEl === row) {
-        historyAudio.pause();
+        stopHistoryPlayback();
+        maybeResumeAfterHistory();
         return;
       }
-      if (historyAudio) historyAudio.pause();
+
+      // History playback cuts off auto playback; resume listening after the take.
+      if (loopAudio) {
+        stopLoopPlayback({ resumeListening: false });
+        resumeAfterHistory = running;
+        if (running) setStatus('idle', 'Playing take');
+      }
+
+      stopHistoryPlayback();
 
       historyAudio = new Audio(item.url);
       nowPlayingEl = row;
       row.classList.add('playing');
       playBtn.textContent = '❚❚';
+      playBtn.title = 'Stop';
 
       const reset = () => {
-        row.classList.remove('playing');
-        playBtn.textContent = '▶';
-        if (nowPlayingEl === row) nowPlayingEl = null;
+        if (nowPlayingEl === row) {
+          row.classList.remove('playing');
+          playBtn.textContent = '▶';
+          playBtn.title = 'Play';
+          nowPlayingEl = null;
+        }
+        if (historyAudio) {
+          historyAudio.onended = null;
+          historyAudio.onpause = null;
+          historyAudio.onerror = null;
+          historyAudio = null;
+        }
+        maybeResumeAfterHistory();
       };
       historyAudio.onended = reset;
-      historyAudio.onpause = reset;
+      historyAudio.onerror = reset;
       historyAudio.play().catch(reset);
     }
 
@@ -1571,7 +1777,8 @@
       );
       if (!ok) return;
 
-      if (historyAudio) historyAudio.pause();
+      if (historyAudio) stopHistoryPlayback();
+      resumeAfterHistory = false;
       const remove = history.slice();
       remove.forEach(item => URL.revokeObjectURL(item.url));
       history.length = 0;
@@ -1586,11 +1793,23 @@
       }
     });
 
+    playbackPauseBtn.addEventListener('click', toggleLoopPause);
+    playbackSkipBtn.addEventListener('click', skipLoopPlayback);
+
     initStorage();
 
     function playback(blob, measuredDuration) {
+      // Auto playback cuts off any history take.
+      stopHistoryPlayback();
+      resumeAfterHistory = false;
+      stopLoopPlayback({ resumeListening: false });
+
       recording = false;
+      loopPaused = false;
+      loopMeasuredDuration = measuredDuration || 0;
       setStatus('playing', 'Playing');
+      updatePauseBtn();
+      setPlaybackControlsOpen(true);
 
       // Turn the meter into a playback progress bar.
       meter.classList.add('playback');
@@ -1600,38 +1819,19 @@
 
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
+      loopUrl = url;
+      loopAudio = audio;
 
-      const totalFallback = measuredDuration || 0;
-      const total = () => (isFinite(audio.duration) && audio.duration > 0)
-        ? audio.duration : totalFallback;
-
-      // Drive the progress bar every animation frame for smooth, continuous motion.
-      let progressRaf = null;
-      const updateProgress = () => {
-        const t = total();
-        const pct = t > 0 ? Math.min(100, (audio.currentTime / t) * 100) : 0;
-        meterFill.style.width = pct + '%';
-        levelText.textContent = fmtDuration(audio.currentTime) + ' / ' + fmtDuration(t);
-        progressRaf = requestAnimationFrame(updateProgress);
-      };
-      progressRaf = requestAnimationFrame(updateProgress);
+      startLoopProgress(audio, loopMeasuredDuration);
 
       const finish = () => {
-        if (progressRaf) cancelAnimationFrame(progressRaf);
-        URL.revokeObjectURL(url);
-        // Restore the meter to its level-meter appearance.
-        meter.classList.remove('playback');
-        meterLabel.textContent = 'level';
-        meterFill.style.width = '0%';
-        levelText.textContent = '0%';
-        if (running) {
-          beginRecording();
-        }
+        if (loopAudio !== audio) return;
+        stopLoopPlayback({ resumeListening: true });
       };
 
       audio.onended = finish;
       audio.onerror = finish;
-      audio.play().catch(err => {
+      audio.play().catch(() => {
         finish();
       });
     }
