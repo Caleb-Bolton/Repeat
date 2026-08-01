@@ -13,18 +13,35 @@
       --text: #e8eaf0;
       --muted: #8a90a6;
       --ok: #3ddc84;
+      --phase: #8a90a6;
+      --phase-glow: rgba(138,144,166,0.12);
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
       min-height: 100vh;
-      background: radial-gradient(1200px 600px at 50% -10%, #1c2233, var(--bg));
+      background:
+        radial-gradient(900px 500px at 50% 18%, var(--phase-glow), transparent 70%),
+        radial-gradient(1200px 600px at 50% -10%, #1c2233, var(--bg));
       color: var(--text);
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       display: flex;
       align-items: center;
       justify-content: center;
       padding: 24px;
+      transition: background 0.45s ease;
+    }
+    body[data-phase="listening"] {
+      --phase: var(--ok);
+      --phase-glow: rgba(61,220,132,0.18);
+    }
+    body[data-phase="recording"] {
+      --phase: var(--accent-2);
+      --phase-glow: rgba(255,91,140,0.20);
+    }
+    body[data-phase="playing"] {
+      --phase: var(--accent);
+      --phase-glow: rgba(91,140,255,0.20);
     }
     .card {
       width: 100%;
@@ -35,104 +52,193 @@
       padding: 28px;
       box-shadow: 0 20px 60px rgba(0,0,0,0.45);
     }
+    .brand { margin-bottom: 22px; }
     h1 {
       margin: 0 0 4px;
       font-size: 24px;
       letter-spacing: 0.3px;
     }
     p.sub {
-      margin: 0 0 22px;
+      margin: 0;
       color: var(--muted);
       font-size: 14px;
       line-height: 1.5;
     }
-    .status {
+
+    /* Phase ring — primary status + meter surface */
+    .phase {
+      position: relative;
+      width: min(100%, 260px);
+      aspect-ratio: 1;
+      margin: 0 auto 22px;
+      color: var(--phase);
+      transition: color 0.35s ease;
+    }
+    .phase__svg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      transform: rotate(-90deg);
+      overflow: visible;
+    }
+    .phase__track {
+      fill: none;
+      stroke: #272b3b;
+      stroke-width: 6;
+    }
+    .phase__progress {
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 6;
+      stroke-linecap: round;
+      stroke-dasharray: 326.73;
+      stroke-dashoffset: 326.73;
+      transition: stroke 0.35s ease;
+      filter: drop-shadow(0 0 10px color-mix(in srgb, currentColor 45%, transparent));
+    }
+    .phase__silence {
+      fill: none;
+      stroke: rgba(255,255,255,0.4);
+      stroke-width: 2.5;
+      stroke-linecap: round;
+      stroke-dasharray: 326.73;
+      stroke-dashoffset: 326.73;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+    .phase__threshold {
+      opacity: 0.9;
+    }
+    .phase__threshold-tick {
+      stroke: #c5cad8;
+      stroke-width: 2.5;
+      stroke-linecap: round;
+    }
+    .phase.playing .phase__threshold,
+    .phase.idle .phase__threshold {
+      opacity: 0;
+    }
+    .phase__core {
+      position: absolute;
+      inset: 18%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      border-radius: 50%;
+      background:
+        radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--phase) 16%, transparent), transparent 68%),
+        #12141d;
+      box-shadow: inset 0 0 0 1px #272b3b;
+      overflow: hidden;
+      transition: transform 0.08s ease;
+    }
+    .phase__bloom {
+      position: absolute;
+      width: 42%;
+      height: 42%;
+      border-radius: 50%;
+      background: radial-gradient(circle, color-mix(in srgb, var(--phase) 55%, white), transparent 72%);
+      opacity: 0.35;
+      transform: scale(0.18);
+      transition: transform 0.06s linear, opacity 0.2s ease;
+      pointer-events: none;
+    }
+    .phase.listening .phase__bloom,
+    .phase.recording .phase__bloom { opacity: 0.55; }
+    .phase.recording .phase__bloom { animation: bloomPulse 1.1s ease-in-out infinite; }
+    .phase.playing .phase__bloom {
+      opacity: 0.4;
+      transform: scale(0.55);
+      animation: none;
+    }
+    .phase.idle .phase__bloom {
+      opacity: 0.2;
+      transform: scale(0.18);
+      animation: none;
+    }
+    @keyframes bloomPulse {
+      0%, 100% { filter: brightness(1); }
+      50% { filter: brightness(1.35); }
+    }
+    .phase.listening { animation: ringBreathe 2.8s ease-in-out infinite; }
+    .phase.recording .phase__progress { animation: ringPulse 1s ease-in-out infinite; }
+    @keyframes ringBreathe {
+      0%, 100% { filter: drop-shadow(0 0 0 transparent); }
+      50% { filter: drop-shadow(0 0 18px color-mix(in srgb, var(--ok) 35%, transparent)); }
+    }
+    @keyframes ringPulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.72; }
+    }
+    .phase__icon {
+      position: relative;
+      z-index: 1;
+      width: 36px;
+      height: 36px;
+      color: var(--text);
       display: flex;
       align-items: center;
-      margin-bottom: 18px;
-      min-height: 32px;
-    }
-    /* Animated phase pill: shows what the loop is currently doing. */
-    .pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 6px 14px 6px 12px;
-      border-radius: 999px;
-      font-size: 14px;
-      font-weight: 600;
-      border: 1px solid transparent;
-      background: #1a1d29;
-      color: var(--muted);
-      transition: color 0.25s, background 0.25s, border-color 0.25s;
-    }
-    .pill__dot {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      background: currentColor;
+      justify-content: center;
       flex: none;
     }
-    .pill.idle {
-      color: var(--muted);
-      background: #1a1d29;
-      border-color: #272b3b;
+    .phase__icon svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.75;
+      stroke-linecap: round;
+      stroke-linejoin: round;
     }
-    .pill.listening {
-      color: var(--ok);
-      background: rgba(61,220,132,0.10);
-      border-color: rgba(61,220,132,0.35);
+    .phase__icon svg.filled {
+      fill: currentColor;
+      stroke: none;
     }
-    .pill.recording {
-      color: var(--accent-2);
-      background: rgba(255,91,140,0.12);
-      border-color: rgba(255,91,140,0.4);
+    /* Play triangles read right-heavy; nudge for optical center */
+    .phase__icon svg.play-icon {
+      transform: translateX(-1px);
     }
-    .pill.recording .pill__dot { animation: pulse 1s ease-in-out infinite; }
-    .pill.playing {
+    .phase.recording .phase__icon,
+    .phase.listening .phase__icon {
+      color: var(--phase);
+    }
+    .phase.playing .phase__icon {
       color: var(--accent);
-      background: rgba(91,140,255,0.12);
-      border-color: rgba(91,140,255,0.4);
     }
-    @keyframes pulse {
-      0%, 100% { box-shadow: 0 0 0 0 currentColor; opacity: 1; }
-      50% { box-shadow: 0 0 0 5px rgba(255,91,140,0); opacity: 0.5; }
+    .phase.is-playback {
+      cursor: pointer;
     }
-
-    .meter {
-      position: relative;
-      height: 14px;
-      border-radius: 8px;
-      background: #11131c;
-      overflow: hidden;
-      border: 1px solid #272b3b;
-      margin-bottom: 6px;
+    .phase.is-playback:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 6px;
+      border-radius: 50%;
     }
-    .meter__fill {
+    .phase.is-playback:active .phase__core {
+      transform: scale(0.98);
+    }
+    .phase__meta {
       position: absolute;
-      left: 0; top: 0; bottom: 0;
-      width: 0%;
-      background: linear-gradient(90deg, var(--ok), var(--accent));
-      transition: width 0.05s linear;
-    }
-    .meter.playback .meter__fill {
-      background: linear-gradient(90deg, var(--accent), var(--accent-2));
-      transition: none;
-    }
-    .meter.playback .meter__threshold { display: none; }
-    .meter__threshold {
-      position: absolute;
-      top: -2px; bottom: -2px;
-      width: 2px;
-      background: var(--accent-2);
-    }
-    .meter-label {
-      display: flex;
-      justify-content: space-between;
+      left: 50%;
+      top: 50%;
+      z-index: 1;
+      transform: translate(-50%, 22px);
+      width: max-content;
+      max-width: 88%;
+      margin: 0;
+      padding: 0 6px;
       font-size: 11px;
+      font-weight: 600;
+      line-height: 1.35;
       color: var(--muted);
-      margin-bottom: 20px;
+      font-variant-numeric: tabular-nums;
+      text-align: center;
+      pointer-events: none;
     }
+    .phase__meta:empty { display: none; }
 
     .controls {
       display: flex;
@@ -165,35 +271,6 @@
     .session-btn.running {
       background: #2a2f42;
       color: var(--text);
-    }
-
-    .playback-controls {
-      display: none;
-      gap: 10px;
-      margin-bottom: 12px;
-    }
-    .playback-controls.open { display: flex; }
-    .playback-btn {
-      flex: 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      padding: 12px;
-      font-size: 14px;
-      font-weight: 700;
-      border-radius: 12px;
-      background: #2a2f42;
-      color: var(--text);
-      box-shadow: inset 0 0 0 1px #3a4158;
-    }
-    .playback-btn:hover {
-      background: #32384f;
-    }
-    .playback-btn.primary {
-      background: rgba(91,140,255,0.18);
-      color: var(--accent);
-      box-shadow: inset 0 0 0 1px rgba(91,140,255,0.45);
     }
 
     .settings-btn {
@@ -620,39 +697,27 @@
     }
   </style>
 </head>
-<body>
+<body data-phase="idle">
   <div class="card">
-    <h1>🔁 Repeat</h1>
-    <p class="sub">
-      Records your voice, waits for silence, plays it back, then
-      starts recording again — looping forever.
-    </p>
-
-    <div class="status">
-      <span class="pill idle" id="pill">
-        <span class="pill__dot"></span>
-        <span id="statusText">Idle</span>
-      </span>
+    <div class="brand">
+      <h1>🔁 Repeat</h1>
+      <p class="sub">Speak. Pause. Hear it back.</p>
     </div>
 
-    <div class="meter" id="meter">
-      <div class="meter__fill" id="meterFill"></div>
-      <div class="meter__threshold" id="meterThreshold"></div>
-    </div>
-    <div class="meter-label">
-      <span id="meterLabel">level</span>
-      <span id="levelText">0%</span>
-    </div>
-
-    <div class="playback-controls" id="playbackControls" hidden>
-      <button class="playback-btn primary" id="playbackPauseBtn" type="button" title="Pause playback">
-        <span id="playbackPauseIcon">❚❚</span>
-        <span id="playbackPauseLabel">Pause</span>
-      </button>
-      <button class="playback-btn" id="playbackSkipBtn" type="button" title="Skip playback">
-        <span>⏭</span>
-        <span>Skip</span>
-      </button>
+    <div class="phase idle" id="phase" aria-live="polite" aria-label="Ready">
+      <svg class="phase__svg" viewBox="0 0 120 120" aria-hidden="true">
+        <circle class="phase__track" cx="60" cy="60" r="52"></circle>
+        <circle class="phase__progress" id="phaseProgress" cx="60" cy="60" r="52"></circle>
+        <circle class="phase__silence" id="phaseSilence" cx="60" cy="60" r="52"></circle>
+        <g class="phase__threshold" id="phaseThreshold">
+          <line class="phase__threshold-tick" x1="107" y1="60" x2="117" y2="60"></line>
+        </g>
+      </svg>
+      <div class="phase__core">
+        <div class="phase__bloom" id="phaseBloom"></div>
+        <div class="phase__icon" id="phaseIcon" aria-hidden="true"></div>
+        <div class="phase__meta" id="phaseMeta"></div>
+      </div>
     </div>
 
     <div class="controls">
@@ -729,18 +794,14 @@
     const sessionBtn = document.getElementById('sessionBtn');
     const sessionIcon = document.getElementById('sessionIcon');
     const sessionLabel = document.getElementById('sessionLabel');
-    const pill = document.getElementById('pill');
-    const statusText = document.getElementById('statusText');
-    const meter = document.getElementById('meter');
-    const meterFill = document.getElementById('meterFill');
-    const meterThreshold = document.getElementById('meterThreshold');
-    const meterLabel = document.getElementById('meterLabel');
-    const levelText = document.getElementById('levelText');
-    const playbackControls = document.getElementById('playbackControls');
-    const playbackPauseBtn = document.getElementById('playbackPauseBtn');
-    const playbackPauseIcon = document.getElementById('playbackPauseIcon');
-    const playbackPauseLabel = document.getElementById('playbackPauseLabel');
-    const playbackSkipBtn = document.getElementById('playbackSkipBtn');
+    const phaseEl = document.getElementById('phase');
+    const phaseIcon = document.getElementById('phaseIcon');
+    const phaseMeta = document.getElementById('phaseMeta');
+    const phaseProgress = document.getElementById('phaseProgress');
+    const phaseSilence = document.getElementById('phaseSilence');
+    const phaseThreshold = document.getElementById('phaseThreshold');
+    const phaseBloom = document.getElementById('phaseBloom');
+    const PHASE_C = 2 * Math.PI * 52;
     const threshSlider = document.getElementById('thresh');
     const durSlider = document.getElementById('dur');
     const threshVal = document.getElementById('threshVal');
@@ -776,6 +837,7 @@
     const DB_VERSION = 1;
     const LEGACY_HISTORY_KEY = 'repeat-history';
     const LEGACY_METRO_KEY = 'repeat-metronome';
+    const SETTINGS_KEY = 'repeat-settings';
 
     let audioCtx, analyser, sourceNode, micStream;
     let mediaRecorder, chunks = [];
@@ -1115,19 +1177,158 @@
       persistMetroPrefs();
     });
 
-    function setStatus(state, text) {
-      pill.className = 'pill ' + state;
-      statusText.textContent = text;
+    const PHASE_UI = {
+      idle: {
+        label: 'Ready',
+        icon: '<svg class="play-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M10 8.5v7l6-3.5z" fill="currentColor" stroke="none"/></svg>',
+      },
+      listening: {
+        label: 'Listening',
+        icon: '<svg viewBox="0 0 24 24"><path d="M12 3a4 4 0 00-4 4v5a4 4 0 008 0V7a4 4 0 00-4-4z"/><path d="M5 11a7 7 0 0014 0"/><path d="M12 18v3"/></svg>',
+      },
+      recording: {
+        label: 'Recording',
+        icon: '<svg class="filled" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6"/></svg>',
+      },
+      playing: {
+        label: 'Playing',
+        // Pause control — click the circle to pause
+        icon: '<svg class="filled" viewBox="0 0 24 24"><rect x="7" y="6" width="3.5" height="12" rx="1"/><rect x="13.5" y="6" width="3.5" height="12" rx="1"/></svg>',
+      },
+      paused: {
+        label: 'Paused',
+        // Play control — click the circle to resume
+        icon: '<svg class="filled play-icon" viewBox="0 0 24 24"><path d="M8 6.5v11l8.5-5.5L8 6.5z"/></svg>',
+      },
+      history: {
+        label: 'Playing take',
+        icon: '<svg class="filled play-icon" viewBox="0 0 24 24"><path d="M8 6.5v11l8.5-5.5L8 6.5z"/></svg>',
+      },
+      blocked: {
+        label: 'Microphone blocked',
+        icon: '<svg viewBox="0 0 24 24"><path d="M12 3a4 4 0 00-4 4v5a4 4 0 004.5 3.97"/><path d="M16 10.5V7a4 4 0 00-1.2-2.85"/><path d="M5 11a7 7 0 0011.3 5.5"/><path d="M12 18v3"/><path d="M4 4l16 16"/></svg>',
+      },
+    };
+
+    function setPhaseProgress(pct) {
+      const p = Math.max(0, Math.min(100, Number(pct) || 0)) / 100;
+      phaseProgress.style.strokeDashoffset = String(PHASE_C * (1 - p));
+    }
+
+    function setSilenceProgress(pct) {
+      if (pct == null || pct < 0) {
+        phaseSilence.style.opacity = '0';
+        return;
+      }
+      // pct = how far through the silence window; ring drains full → empty.
+      const p = Math.max(0, Math.min(100, pct)) / 100;
+      phaseSilence.style.opacity = '1';
+      phaseSilence.style.strokeDashoffset = String(PHASE_C * p);
+    }
+
+    function setPhaseBloom(pct) {
+      const p = Math.max(0, Math.min(100, Number(pct) || 0)) / 100;
+      phaseBloom.style.transform = 'scale(' + (0.18 + p * 0.85).toFixed(3) + ')';
+    }
+
+    function setPhaseMeta(text) {
+      phaseMeta.textContent = text || '';
+    }
+
+    function resetPhaseVisual() {
+      setPhaseProgress(0);
+      setSilenceProgress(-1);
+      setPhaseBloom(0);
+      setPhaseMeta('');
+    }
+
+    function updateThresholdTick() {
+      const deg = (Number(threshSlider.value) / 100) * 360;
+      phaseThreshold.setAttribute('transform', 'rotate(' + deg + ' 60 60)');
+    }
+
+    function setPhasePlaybackInteractive(on) {
+      phaseEl.classList.toggle('is-playback', on);
+      phaseEl.tabIndex = on ? 0 : -1;
+      if (on) phaseEl.setAttribute('role', 'button');
+      else phaseEl.removeAttribute('role');
+    }
+
+    function setStatus(state) {
+      const ui = PHASE_UI[state] || PHASE_UI.idle;
+      const visualState = state === 'paused' ? 'playing'
+        : state === 'blocked' ? 'idle'
+        : state === 'history' ? 'playing'
+        : state;
+
+      phaseEl.className = 'phase ' + visualState;
+      document.body.dataset.phase = visualState;
+      phaseIcon.innerHTML = ui.icon;
+
+      const canTogglePlayback = state === 'playing' || state === 'paused';
+      setPhasePlaybackInteractive(canTogglePlayback);
+      if (state === 'playing') {
+        phaseEl.setAttribute('aria-label', 'Playing, click to pause');
+        phaseEl.title = 'Click to pause';
+      } else if (state === 'paused') {
+        phaseEl.setAttribute('aria-label', 'Paused, click to resume');
+        phaseEl.title = 'Click to resume';
+      } else {
+        phaseEl.setAttribute('aria-label', ui.label);
+        phaseEl.removeAttribute('title');
+      }
+
+      if (visualState === 'idle') resetPhaseVisual();
+      if (visualState === 'listening') setSilenceProgress(-1);
+      if (visualState === 'playing') {
+        setSilenceProgress(-1);
+        setPhaseBloom(55);
+      }
+      if (state !== 'playing' && state !== 'paused') {
+        setPhaseMeta('');
+      }
+    }
+
+    function persistSettings() {
+      try {
+        localStorage.setItem(SETTINGS_KEY, JSON.stringify({
+          thresh: Number(threshSlider.value),
+          dur: Number(durSlider.value),
+        }));
+      } catch (err) {
+        console.warn('Could not save settings', err);
+      }
+    }
+
+    function loadSettings() {
+      try {
+        const raw = localStorage.getItem(SETTINGS_KEY);
+        if (raw) {
+          const prefs = JSON.parse(raw);
+          if (prefs.thresh != null) threshSlider.value = prefs.thresh;
+          if (prefs.dur != null) durSlider.value = prefs.dur;
+        }
+      } catch (err) {
+        console.warn('Could not load settings', err);
+      }
+      threshVal.textContent = threshSlider.value + '%';
+      durVal.textContent = (durSlider.value / 1000).toFixed(1) + 's';
+      updateThresholdTick();
     }
 
     threshSlider.addEventListener('input', () => {
       threshVal.textContent = threshSlider.value + '%';
-      meterThreshold.style.left = threshSlider.value + '%';
+      updateThresholdTick();
+      persistSettings();
     });
     durSlider.addEventListener('input', () => {
       durVal.textContent = (durSlider.value / 1000).toFixed(1) + 's';
+      persistSettings();
     });
-    meterThreshold.style.left = threshSlider.value + '%';
+    loadSettings();
+    phaseProgress.style.strokeDasharray = String(PHASE_C);
+    phaseSilence.style.strokeDasharray = String(PHASE_C);
+    setStatus('idle');
 
     sessionBtn.addEventListener('click', () => {
       if (running) stop();
@@ -1138,7 +1339,7 @@
       try {
         micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
       } catch (err) {
-        setStatus('idle', 'Microphone blocked');
+        setStatus('blocked');
         return;
       }
 
@@ -1171,11 +1372,8 @@
       sessionBtn.classList.remove('running');
       sessionIcon.textContent = '▶';
       sessionLabel.textContent = 'Start session';
-      meter.classList.remove('playback');
-      meterLabel.textContent = 'level';
-      meterFill.style.width = '0%';
-      levelText.textContent = '0%';
-      setStatus('idle', 'Stopped');
+      resetPhaseVisual();
+      setStatus('idle');
 
       if (wasRecording) {
         // Finalize the in-progress take before tearing down the mic.
@@ -1225,7 +1423,10 @@
       silenceStart = null;
       armed = true;
       recording = false;
-      setStatus('listening', 'Listening');
+      setPhaseProgress(0);
+      setSilenceProgress(-1);
+      setPhaseBloom(0);
+      setStatus('listening');
     }
 
     function startActualRecording() {
@@ -1240,7 +1441,7 @@
       mediaRecorder.start();
       recordStartTime = performance.now();
       recording = true;
-      setStatus('recording', 'Recording');
+      setStatus('recording');
     }
 
     function handleRecordingStop() {
@@ -1574,28 +1775,8 @@
       }
     }
 
-    function setPlaybackControlsOpen(open) {
-      playbackControls.classList.toggle('open', open);
-      playbackControls.hidden = !open;
-    }
-
-    function updatePauseBtn() {
-      if (loopPaused) {
-        playbackPauseIcon.textContent = '▶';
-        playbackPauseLabel.textContent = 'Resume';
-        playbackPauseBtn.title = 'Resume playback';
-      } else {
-        playbackPauseIcon.textContent = '❚❚';
-        playbackPauseLabel.textContent = 'Pause';
-        playbackPauseBtn.title = 'Pause playback';
-      }
-    }
-
     function resetMeterFromPlayback() {
-      meter.classList.remove('playback');
-      meterLabel.textContent = 'level';
-      meterFill.style.width = '0%';
-      levelText.textContent = '0%';
+      resetPhaseVisual();
     }
 
     function stopHistoryPlayback() {
@@ -1628,9 +1809,7 @@
 
     function stopLoopPlayback({ resumeListening = false } = {}) {
       clearLoopProgress();
-      setPlaybackControlsOpen(false);
       loopPaused = false;
-      updatePauseBtn();
 
       if (loopAudio) {
         const audio = loopAudio;
@@ -1644,6 +1823,7 @@
         loopUrl = null;
       }
       resetMeterFromPlayback();
+      setPhasePlaybackInteractive(false);
 
       if (resumeListening && running && !recording && !armed) {
         beginRecording();
@@ -1657,8 +1837,7 @@
         audio.play().then(() => {
           if (loopAudio !== audio) return;
           loopPaused = false;
-          setStatus('playing', 'Playing');
-          updatePauseBtn();
+          setStatus('playing');
           startLoopProgress(audio, loopMeasuredDuration);
         }).catch(() => {
           if (loopAudio === audio) stopLoopPlayback({ resumeListening: true });
@@ -1667,14 +1846,8 @@
         loopPaused = true;
         loopAudio.pause();
         clearLoopProgress();
-        setStatus('playing', 'Paused');
-        updatePauseBtn();
+        setStatus('paused');
       }
-    }
-
-    function skipLoopPlayback() {
-      if (!loopAudio) return;
-      stopLoopPlayback({ resumeListening: true });
     }
 
     function startLoopProgress(audio, measuredDuration) {
@@ -1687,8 +1860,8 @@
         if (!loopAudio || loopPaused) return;
         const t = total();
         const pct = t > 0 ? Math.min(100, (audio.currentTime / t) * 100) : 0;
-        meterFill.style.width = pct + '%';
-        levelText.textContent = fmtDuration(audio.currentTime) + ' / ' + fmtDuration(t);
+        setPhaseProgress(pct);
+        setPhaseMeta(fmtDuration(audio.currentTime) + ' / ' + fmtDuration(t));
         loopProgressRaf = requestAnimationFrame(updateProgress);
       };
       loopProgressRaf = requestAnimationFrame(updateProgress);
@@ -1706,7 +1879,7 @@
       if (loopAudio) {
         stopLoopPlayback({ resumeListening: false });
         resumeAfterHistory = running;
-        if (running) setStatus('idle', 'Playing take');
+        if (running) setStatus('history');
       }
 
       stopHistoryPlayback();
@@ -1793,8 +1966,16 @@
       }
     });
 
-    playbackPauseBtn.addEventListener('click', toggleLoopPause);
-    playbackSkipBtn.addEventListener('click', skipLoopPlayback);
+    phaseEl.addEventListener('click', () => {
+      if (loopAudio) toggleLoopPause();
+    });
+    phaseEl.addEventListener('keydown', (e) => {
+      if (!loopAudio) return;
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        toggleLoopPause();
+      }
+    });
 
     initStorage();
 
@@ -1807,15 +1988,12 @@
       recording = false;
       loopPaused = false;
       loopMeasuredDuration = measuredDuration || 0;
-      setStatus('playing', 'Playing');
-      updatePauseBtn();
-      setPlaybackControlsOpen(true);
+      setStatus('playing');
 
-      // Turn the meter into a playback progress bar.
-      meter.classList.add('playback');
-      meterLabel.textContent = 'playback';
-      meterFill.style.width = '0%';
-      levelText.textContent = '0:00';
+      setPhaseProgress(0);
+      setSilenceProgress(-1);
+      setPhaseBloom(55);
+      setPhaseMeta('0:00');
 
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
@@ -1854,25 +2032,27 @@
         const levelPct = Math.min(100, Math.round(rms * 300));
         const threshPct = Number(threshSlider.value);
 
-        // Update the level meter while listening (armed) or recording.
+        // Drive the phase ring while listening (armed) or recording.
         if (armed || recording) {
-          meterFill.style.width = levelPct + '%';
-          levelText.textContent = levelPct + '%';
+          setPhaseProgress(levelPct);
+          setPhaseBloom(levelPct);
 
           const isLoud = levelPct >= threshPct;
 
           if (armed) {
+            setSilenceProgress(-1);
             // Waiting for the first sound past the threshold to begin recording.
             if (isLoud) startActualRecording();
           } else if (recording) {
             if (isLoud) {
               silenceStart = null;
+              setSilenceProgress(-1);
             } else {
-              // We're in silence after having heard speech.
-              if (silenceStart === null) {
-                silenceStart = performance.now();
-              } else if (performance.now() - silenceStart >= Number(durSlider.value)) {
-                // Long enough silence — stop and play back.
+              // Silence after speech — stay in Recording visually; drain the arc.
+              if (silenceStart === null) silenceStart = performance.now();
+              const silencePct = ((performance.now() - silenceStart) / Number(durSlider.value)) * 100;
+              setSilenceProgress(Math.min(100, silencePct));
+              if (silencePct >= 100) {
                 if (mediaRecorder && mediaRecorder.state === 'recording') {
                   recording = false;
                   mediaRecorder.stop();
