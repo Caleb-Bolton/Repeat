@@ -932,6 +932,7 @@
     const LEGACY_HISTORY_KEY = 'repeat-history';
     const LEGACY_METRO_KEY = 'repeat-metronome';
     const SETTINGS_KEY = 'repeat-settings';
+    const ARCHIVED_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 
     let audioCtx, analyser, sourceNode, micStream;
     let mediaRecorder, chunks = [];
@@ -946,7 +947,7 @@
     let recordStartTime = 0;      // when the current take began
 
     // Recording history
-    const history = [];           // { id, url, blob, duration, time, ext, type, starred, archived, name }
+    const history = [];           // { id, url, blob, duration, time, ext, type, starred, archived, archivedAt, name }
     let takeNum = 0;
     let nowPlayingEl = null;
     let historyAudio = null;
@@ -1047,6 +1048,11 @@
         type: item.type,
         starred: !!item.starred,
         archived: !!item.archived,
+        archivedAt: item.archived
+          ? (item.archivedAt instanceof Date
+              ? item.archivedAt.toISOString()
+              : (item.archivedAt || null))
+          : null,
       };
       await idbRequest(
         db.transaction('clips', 'readwrite').objectStore('clips').put(record)
@@ -1159,10 +1165,43 @@
           type: saved.type || saved.blob.type || 'audio/webm',
           starred: !!saved.starred,
           archived: !!saved.archived,
+          archivedAt: saved.archivedAt ? new Date(saved.archivedAt) : null,
         });
       });
       const storedTake = await metaGet('takeNum');
       takeNum = Number(storedTake) || history.reduce((m, i) => Math.max(m, i.n || 0), 0);
+    }
+
+    function clipAgeMs(item, now = Date.now()) {
+      const stamp = item.archivedAt || item.time;
+      const t = stamp instanceof Date ? stamp.getTime() : Date.parse(stamp);
+      return Number.isFinite(t) ? now - t : 0;
+    }
+
+    async function purgeExpiredArchived() {
+      const now = Date.now();
+      const expired = history.filter(
+        item => item.archived && clipAgeMs(item, now) >= ARCHIVED_RETENTION_MS
+      );
+      if (expired.length === 0) return;
+
+      for (const item of expired) {
+        if (historyAudio && nowPlayingEl && nowPlayingEl.dataset.id === item.id) {
+          stopHistoryPlayback();
+          maybeResumeAfterHistory();
+        }
+        URL.revokeObjectURL(item.url);
+        const idx = history.findIndex(h => h.id === item.id);
+        if (idx >= 0) history.splice(idx, 1);
+      }
+      if (history.length === 0) takeNum = 0;
+
+      try {
+        await Promise.all(expired.map(item => deleteClip(item.id)));
+        await persistTakeNum();
+      } catch (err) {
+        console.warn('Could not purge expired archived takes', err);
+      }
     }
 
     async function initStorage() {
@@ -1170,6 +1209,7 @@
         await getDB();
         await migrateFromLocalStorage();
         await loadHistory();
+        await purgeExpiredArchived();
         await loadMetroPrefs();
       } catch (err) {
         console.warn('Could not initialize IndexedDB storage', err);
@@ -1678,6 +1718,7 @@
         type,
         starred: false,
         archived: false,
+        archivedAt: null,
       };
       history.unshift(item);
       pendingEnterId = item.id;
@@ -1760,6 +1801,7 @@
 
     function toggleArchive(item) {
       item.archived = !item.archived;
+      item.archivedAt = item.archived ? new Date() : null;
       if (historyAudio && nowPlayingEl && nowPlayingEl.dataset.id === item.id) {
         stopHistoryPlayback();
         maybeResumeAfterHistory();
@@ -2002,7 +2044,7 @@
       resetPhaseVisual();
     }
 
-    function stopHistoryPlayback() {
+    function stopHistoryPlayback({ resumeMetronome = true } = {}) {
       if (!historyAudio) return;
       const audio = historyAudio;
       const row = nowPlayingEl;
@@ -2020,6 +2062,7 @@
           btn.title = 'Play';
         }
       }
+      if (resumeMetronome) resumeMetronomeAfterPlayback();
     }
 
     function maybeResumeAfterHistory() {
@@ -2030,7 +2073,7 @@
       }
     }
 
-    function stopLoopPlayback({ resumeListening = false } = {}) {
+    function stopLoopPlayback({ resumeListening = false, resumeMetronome = true } = {}) {
       clearLoopProgress();
       const wasPlaying = !!loopAudio;
 
@@ -2048,7 +2091,7 @@
       resetMeterFromPlayback();
       setPhasePlaybackInteractive(false);
 
-      if (wasPlaying) resumeMetronomeAfterPlayback();
+      if (wasPlaying && resumeMetronome) resumeMetronomeAfterPlayback();
 
       if (resumeListening && running && !recording && !armed) {
         beginRecording();
@@ -2087,37 +2130,30 @@
 
       // History playback cuts off auto playback; resume listening after the take.
       if (loopAudio) {
-        stopLoopPlayback({ resumeListening: false });
+        // Keep metronome paused across the handoff; pauseMetronome below owns resume.
+        stopLoopPlayback({ resumeListening: false, resumeMetronome: false });
         resumeAfterHistory = running;
         if (running) setStatus('history');
       }
 
-      stopHistoryPlayback();
+      stopHistoryPlayback({ resumeMetronome: false });
+      pauseMetronomeForPlayback();
 
-      historyAudio = new Audio(item.url);
+      const audio = new Audio(item.url);
+      historyAudio = audio;
       nowPlayingEl = row;
       row.classList.add('playing');
       playBtn.textContent = '❚❚';
       playBtn.title = 'Stop';
 
       const reset = () => {
-        if (nowPlayingEl === row) {
-          row.classList.remove('playing');
-          playBtn.textContent = '▶';
-          playBtn.title = 'Play';
-          nowPlayingEl = null;
-        }
-        if (historyAudio) {
-          historyAudio.onended = null;
-          historyAudio.onpause = null;
-          historyAudio.onerror = null;
-          historyAudio = null;
-        }
+        if (historyAudio !== audio) return;
+        stopHistoryPlayback();
         maybeResumeAfterHistory();
       };
-      historyAudio.onended = reset;
-      historyAudio.onerror = reset;
-      historyAudio.play().catch(reset);
+      audio.onended = reset;
+      audio.onerror = reset;
+      audio.play().catch(reset);
     }
 
     function setMenuOpen(open) {
