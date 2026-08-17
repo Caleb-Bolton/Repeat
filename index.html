@@ -940,6 +940,7 @@
     let running = false;
     let recording = false;
     let armed = false;            // listening for speech, recorder not started yet
+    let recordingFinalized = true;
 
     // Silence-detection state
     let hasSpoken = false;        // did we hear sound during this take?
@@ -953,13 +954,15 @@
     let historyAudio = null;
     let historyFilter = 'active'; // 'active' | 'keepers' | 'archived'
     let dbPromise = null;
+    let sessionStopPromise = null;
+    let historyPlayRequest = 0;
+    const pendingTakeSaves = new Set();
 
     // Auto (loop) playback
     let loopAudio = null;
     let loopUrl = null;
     let loopProgressRaf = null;
     let loopMeasuredDuration = 0;
-    let resumeAfterHistory = false;
 
     // Metronome
     let metroCtx = null;
@@ -1188,7 +1191,6 @@
       for (const item of expired) {
         if (historyAudio && nowPlayingEl && nowPlayingEl.dataset.id === item.id) {
           stopHistoryPlayback();
-          maybeResumeAfterHistory();
         }
         URL.revokeObjectURL(item.url);
         const idx = history.findIndex(h => h.id === item.id);
@@ -1573,12 +1575,16 @@
     phaseSilence.style.strokeDasharray = String(PHASE_C);
     setStatus('idle');
 
-    sessionBtn.addEventListener('click', () => {
-      if (running) stop();
-      else start();
+    sessionBtn.addEventListener('click', async () => {
+      if (running || sessionStopPromise) await stop();
+      else await start();
     });
 
     async function start() {
+      if (sessionStopPromise) await sessionStopPromise;
+      historyPlayRequest++;
+      stopHistoryPlayback();
+
       try {
         micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
       } catch (err) {
@@ -1602,16 +1608,24 @@
       monitor();
     }
 
-    function stop() {
-      const wasRecording = recording && mediaRecorder && mediaRecorder.state === 'recording';
+    function stop(options = {}) {
+      if (sessionStopPromise) return sessionStopPromise;
+      sessionStopPromise = stopSession(options).finally(() => {
+        sessionStopPromise = null;
+      });
+      return sessionStopPromise;
+    }
+
+    async function stopSession({ resumeMetronome = true } = {}) {
+      const recorder = mediaRecorder;
+      const hasUnsavedRecording = recorder && !recordingFinalized;
       running = false;
       armed = false;
       recording = false;
-      resumeAfterHistory = false;
       if (rafId) cancelAnimationFrame(rafId);
 
-      stopLoopPlayback({ resumeListening: false });
-      stopHistoryPlayback();
+      stopLoopPlayback({ resumeListening: false, resumeMetronome });
+      stopHistoryPlayback({ resumeMetronome });
 
       sessionBtn.classList.remove('running');
       sessionIcon.textContent = '▶';
@@ -1619,24 +1633,36 @@
       resetPhaseVisual();
       setStatus('idle');
 
-      if (wasRecording) {
-        // Finalize the in-progress take before tearing down the mic.
-        mediaRecorder.onstop = () => {
-          saveCurrentTake();
-          teardownMedia();
-        };
-        try {
-          mediaRecorder.stop();
-        } catch (err) {
-          teardownMedia();
-        }
+      if (hasUnsavedRecording) {
+        // Finalize and persist the in-progress take before tearing down the mic.
+        await new Promise(resolve => {
+          recorder.onstop = async () => {
+            recordingFinalized = true;
+            try {
+              await saveCurrentTake(recorder);
+            } finally {
+              resolve();
+            }
+          };
+          if (recorder.state === 'recording') {
+            try {
+              recorder.stop();
+            } catch (err) {
+              recordingFinalized = true;
+              resolve();
+            }
+          }
+        });
       } else {
-        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-          mediaRecorder.onstop = null;
-          try { mediaRecorder.stop(); } catch (_) {}
+        if (recorder && recorder.state !== 'inactive') {
+          recorder.onstop = null;
+          try { recorder.stop(); } catch (_) {}
         }
-        teardownMedia();
       }
+
+      // A completed take may still be writing to IndexedDB during loop playback.
+      await waitForPendingTakeSaves();
+      teardownMedia();
     }
 
     function teardownMedia() {
@@ -1650,12 +1676,12 @@
       }
     }
 
-    function saveCurrentTake() {
-      const type = (mediaRecorder && mediaRecorder.mimeType) || 'audio/webm';
+    function saveCurrentTake(recorder = mediaRecorder) {
+      const type = (recorder && recorder.mimeType) || 'audio/webm';
       const blob = new Blob(chunks, { type });
       if (!hasSpoken || blob.size === 0) return;
       const duration = (performance.now() - recordStartTime) / 1000;
-      addToHistory(blob, type, duration);
+      return addToHistory(blob, type, duration);
     }
 
     function beginRecording() {
@@ -1664,6 +1690,7 @@
       if (!running) return;
       chunks = [];
       hasSpoken = false;
+      recordingFinalized = true;
       silenceStart = null;
       armed = true;
       recording = false;
@@ -1682,6 +1709,7 @@
         if (e.data.size > 0) chunks.push(e.data);
       };
       mediaRecorder.onstop = handleRecordingStop;
+      recordingFinalized = false;
       mediaRecorder.start();
       recordStartTime = performance.now();
       recording = true;
@@ -1689,7 +1717,7 @@
     }
 
     function handleRecordingStop() {
-      // Session was stopped mid-take — saveCurrentTake already handled it.
+      recordingFinalized = true;
       if (!running) return;
       const type = mediaRecorder.mimeType || 'audio/webm';
       const blob = new Blob(chunks, { type });
@@ -1703,7 +1731,7 @@
       playback(blob, duration);
     }
 
-    async function addToHistory(blob, type, duration) {
+    function addToHistory(blob, type, duration) {
       takeNum++;
       const ext = type.includes('ogg') ? 'ogg' : (type.includes('mp4') ? 'mp4' : 'webm');
       const item = {
@@ -1723,11 +1751,19 @@
       history.unshift(item);
       pendingEnterId = item.id;
       renderHistory();
-      try {
-        await saveClip(item);
-        await persistTakeNum();
-      } catch (err) {
-        console.warn('Could not save recording to IndexedDB', err);
+      const savePromise = Promise.all([saveClip(item), persistTakeNum()])
+        .catch(err => {
+          console.warn('Could not save recording to IndexedDB', err);
+        });
+      pendingTakeSaves.add(savePromise);
+      const forgetSave = () => pendingTakeSaves.delete(savePromise);
+      savePromise.then(forgetSave, forgetSave);
+      return savePromise;
+    }
+
+    async function waitForPendingTakeSaves() {
+      while (pendingTakeSaves.size > 0) {
+        await Promise.all(Array.from(pendingTakeSaves));
       }
     }
 
@@ -1804,7 +1840,6 @@
       item.archivedAt = item.archived ? new Date() : null;
       if (historyAudio && nowPlayingEl && nowPlayingEl.dataset.id === item.id) {
         stopHistoryPlayback();
-        maybeResumeAfterHistory();
       }
       renderHistory();
       saveClip(item).catch(err => {
@@ -1850,7 +1885,6 @@
 
       if (historyAudio && nowPlayingEl && nowPlayingEl.dataset.id === item.id) {
         stopHistoryPlayback();
-        maybeResumeAfterHistory();
       }
       URL.revokeObjectURL(item.url);
       const idx = history.findIndex(h => h.id === item.id);
@@ -2065,14 +2099,6 @@
       if (resumeMetronome) resumeMetronomeAfterPlayback();
     }
 
-    function maybeResumeAfterHistory() {
-      if (!resumeAfterHistory) return;
-      resumeAfterHistory = false;
-      if (running && !loopAudio && !recording && !armed) {
-        beginRecording();
-      }
-    }
-
     function stopLoopPlayback({ resumeListening = false, resumeMetronome = true } = {}) {
       clearLoopProgress();
       const wasPlaying = !!loopAudio;
@@ -2120,24 +2146,32 @@
       loopProgressRaf = requestAnimationFrame(updateProgress);
     }
 
-    function playClip(item, row, playBtn) {
+    async function playClip(item, row, playBtn) {
       // Toggle off if this clip is already playing.
       if (historyAudio && nowPlayingEl === row) {
+        historyPlayRequest++;
         stopHistoryPlayback();
-        maybeResumeAfterHistory();
         return;
       }
 
-      // History playback cuts off auto playback; resume listening after the take.
-      if (loopAudio) {
-        // Keep metronome paused across the handoff; pauseMetronome below owns resume.
+      const request = ++historyPlayRequest;
+
+      // Historical playback pauses the session. This also finalizes the current
+      // recording and waits for every pending take to reach IndexedDB.
+      if (running || sessionStopPromise) {
+        await stop({ resumeMetronome: false });
+        if (request !== historyPlayRequest) return;
+      } else {
         stopLoopPlayback({ resumeListening: false, resumeMetronome: false });
-        resumeAfterHistory = running;
-        if (running) setStatus('history');
       }
 
       stopHistoryPlayback({ resumeMetronome: false });
       pauseMetronomeForPlayback();
+
+      // Saving an in-progress take re-renders history, so target the current row.
+      row = Array.from(historyList.querySelectorAll('.clip'))
+        .find(candidate => candidate.dataset.id === item.id) || row;
+      playBtn = row.querySelector('.clip__play') || playBtn;
 
       const audio = new Audio(item.url);
       historyAudio = audio;
@@ -2149,7 +2183,6 @@
       const reset = () => {
         if (historyAudio !== audio) return;
         stopHistoryPlayback();
-        maybeResumeAfterHistory();
       };
       audio.onended = reset;
       audio.onerror = reset;
@@ -2197,7 +2230,6 @@
       if (!ok) return;
 
       if (historyAudio) stopHistoryPlayback();
-      resumeAfterHistory = false;
       const remove = history.slice();
       remove.forEach(item => URL.revokeObjectURL(item.url));
       history.length = 0;
@@ -2228,7 +2260,6 @@
     function playback(blob, measuredDuration) {
       // Auto playback cuts off any history take.
       stopHistoryPlayback();
-      resumeAfterHistory = false;
       stopLoopPlayback({ resumeListening: false });
       pauseMetronomeForPlayback();
 
