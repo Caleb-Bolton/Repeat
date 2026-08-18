@@ -1613,18 +1613,11 @@
       stopHistoryPlayback();
 
       try {
-        micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        await openCapture();
       } catch (err) {
         setStatus('blocked');
         return;
       }
-
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      sourceNode = audioCtx.createMediaStreamSource(micStream);
-      analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 2048;
-      analyser.smoothingTimeConstant = 0.65;
-      sourceNode.connect(analyser);
 
       running = true;
       sessionBtn.classList.add('running');
@@ -1633,6 +1626,22 @@
 
       beginRecording();
       monitor();
+    }
+
+    async function openCapture() {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      const context = new AudioContextClass();
+      const source = context.createMediaStreamSource(stream);
+      const nextAnalyser = context.createAnalyser();
+      nextAnalyser.fftSize = 2048;
+      nextAnalyser.smoothingTimeConstant = 0.65;
+      source.connect(nextAnalyser);
+
+      micStream = stream;
+      audioCtx = context;
+      sourceNode = source;
+      analyser = nextAnalyser;
     }
 
     function stop(options = {}) {
@@ -1689,18 +1698,57 @@
 
       // A completed take may still be writing to IndexedDB during loop playback.
       await waitForPendingTakeSaves();
-      teardownMedia();
+      await teardownMedia();
     }
 
-    function teardownMedia() {
-      if (micStream) {
-        micStream.getTracks().forEach(t => t.stop());
-        micStream = null;
+    async function teardownMedia() {
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
       }
-      if (audioCtx && audioCtx.state !== 'closed') {
-        audioCtx.close();
-        audioCtx = null;
+
+      // Clear the shared references first so overlapping stop/playback paths
+      // cannot close the same capture resources twice.
+      const stream = micStream;
+      const context = audioCtx;
+      const source = sourceNode;
+      micStream = null;
+      audioCtx = null;
+      sourceNode = null;
+      analyser = null;
+
+      if (source) {
+        try { source.disconnect(); } catch (_) {}
       }
+      if (stream) stream.getTracks().forEach(t => t.stop());
+      if (context && context.state !== 'closed') {
+        try { await context.close(); } catch (_) {}
+      }
+    }
+
+    async function resumeCaptureAfterPlayback() {
+      if (!running || micStream) return;
+
+      try {
+        await openCapture();
+      } catch (err) {
+        if (!running) return;
+        running = false;
+        sessionBtn.classList.remove('running');
+        sessionIcon.textContent = '▶';
+        sessionLabel.textContent = 'Start session';
+        setStatus('blocked');
+        return;
+      }
+
+      // The user may stop the session while microphone access is reopening.
+      if (!running) {
+        await teardownMedia();
+        return;
+      }
+
+      beginRecording();
+      monitor();
     }
 
     function saveCurrentTake(recorder = mediaRecorder) {
@@ -1731,7 +1779,7 @@
       armed = false;
       hasSpoken = true;
       silenceStart = null;
-      mediaRecorder = new MediaRecorder(micStream);
+      mediaRecorder = createHighQualityRecorder(micStream);
       mediaRecorder.ondataavailable = e => {
         if (e.data.size > 0) chunks.push(e.data);
       };
@@ -1743,7 +1791,30 @@
       setStatus('recording');
     }
 
-    function handleRecordingStop() {
+    function createHighQualityRecorder(stream) {
+      const mimeTypes = [
+        'audio/mp4;codecs=mp4a.40.2',
+        'audio/webm;codecs=opus',
+        'audio/mp4',
+        'audio/webm',
+        'audio/ogg;codecs=opus',
+      ];
+      const canCheckType = typeof MediaRecorder.isTypeSupported === 'function';
+      const mimeType = canCheckType
+        ? mimeTypes.find(type => MediaRecorder.isTypeSupported(type))
+        : 'audio/mp4';
+      const options = { audioBitsPerSecond: 192000 };
+      if (mimeType) options.mimeType = mimeType;
+
+      try {
+        return new MediaRecorder(stream, options);
+      } catch (err) {
+        // Preserve recording on older browsers that reject bitrate options.
+        return new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      }
+    }
+
+    async function handleRecordingStop() {
       recordingFinalized = true;
       if (!running) return;
       const type = mediaRecorder.mimeType || 'audio/webm';
@@ -1755,6 +1826,11 @@
       }
       const duration = (performance.now() - recordStartTime) / 1000;
       addToHistory(blob, type, duration);
+
+      // Fully release capture before playback. On iOS, leaving getUserMedia
+      // active can keep output in a lower-quality duplex audio route.
+      await teardownMedia();
+      if (!running) return;
       playback(blob, duration);
     }
 
@@ -2147,7 +2223,7 @@
       if (wasPlaying && resumeMetronome) resumeMetronomeAfterPlayback();
 
       if (resumeListening && running && !recording && !armed) {
-        beginRecording();
+        resumeCaptureAfterPlayback();
       }
     }
 
