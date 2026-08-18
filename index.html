@@ -496,16 +496,6 @@
       font-weight: 700;
     }
     .history__head span { color: var(--muted); font-size: 12px; }
-    .clear-btn {
-      flex: none;
-      padding: 6px 12px;
-      font-size: 12px;
-      font-weight: 600;
-      border-radius: 8px;
-      background: #2a2f42;
-      color: var(--text);
-    }
-    .clear-btn:disabled { opacity: 0.4; }
     .menu {
       position: relative;
       flex: none;
@@ -646,6 +636,12 @@
     }
     .clip.playing { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(91,140,255,0.2); }
     .clip.starred { border-color: rgba(255,196,77,0.45); }
+    .clip.selecting { cursor: pointer; }
+    .clip.selected {
+      border-color: var(--accent);
+      background: rgba(91,140,255,0.08);
+      box-shadow: inset 0 0 0 1px rgba(91,140,255,0.18);
+    }
     .clip__play {
       flex: none;
       width: 34px; height: 34px;
@@ -657,6 +653,33 @@
       display: flex;
       align-items: center;
       justify-content: center;
+    }
+    .clip__select {
+      flex: none;
+      width: 34px;
+      height: 34px;
+      padding: 0;
+      border-radius: 8px;
+      border: 1px solid #3a4158;
+      background: #1b1f2d;
+      color: transparent;
+      font-size: 16px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .clip.selected .clip__select {
+      border-color: var(--accent);
+      background: var(--accent);
+      color: #fff;
+    }
+    .clip__keeper-mark {
+      flex: none;
+      width: 32px;
+      text-align: center;
+      color: #ffc44d;
+      font-size: 16px;
     }
     .clip__meta { flex: 1; min-width: 0; }
     .clip__title {
@@ -773,23 +796,80 @@
     }
     .filter-btn {
       flex: none;
-      padding: 6px 12px;
-      font-size: 12px;
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      font-size: 15px;
       font-weight: 600;
       border-radius: 8px;
       background: #2a2f42;
       color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
     .filter-btn.on {
       background: rgba(255,196,77,0.14);
       color: #ffc44d;
       box-shadow: inset 0 0 0 1px rgba(255,196,77,0.35);
     }
-    .filter-btn.archive.on {
+    .filter-btn.select.on {
       background: rgba(91,140,255,0.14);
       color: var(--accent);
       box-shadow: inset 0 0 0 1px rgba(91,140,255,0.35);
     }
+    .filter-btn:disabled { opacity: 0.4; }
+    .filter-btn[hidden] { display: none !important; }
+    .history__selection-head,
+    .history__bulkbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .history__selection-head {
+      justify-content: space-between;
+      margin-bottom: 8px;
+      padding: 8px 10px;
+      border: 1px solid rgba(91,140,255,0.35);
+      border-radius: 9px;
+      background: rgba(91,140,255,0.08);
+      color: var(--muted);
+      font-size: 11px;
+    }
+    .history__selection-head[hidden],
+    .history__bulkbar[hidden] { display: none !important; }
+    .selection-all {
+      padding: 0;
+      background: transparent;
+      color: var(--accent);
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .history__bulkbar {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid #272b3b;
+    }
+    .history__selected-count {
+      flex: 1;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .bulk-btn {
+      padding: 8px 11px;
+      border-radius: 8px;
+      background: #2a2f42;
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .bulk-btn.danger {
+      background: rgba(255,91,140,0.14);
+      color: var(--accent-2);
+      box-shadow: inset 0 0 0 1px rgba(255,91,140,0.28);
+    }
+    .bulk-btn:disabled { opacity: 0.4; }
   </style>
 </head>
 <body data-phase="idle">
@@ -877,18 +957,27 @@
       <div class="history__head">
         <h2><span id="historyTitle">History</span> <span id="historyCount">(0)</span></h2>
         <div class="history__actions">
-          <button class="filter-btn" id="keepersBtn" title="Show starred keepers only">★ Keepers</button>
+          <button class="filter-btn" id="keepersBtn" title="Show keepers only" aria-label="Show keepers only" aria-pressed="false">★</button>
+          <button class="filter-btn select" id="selectModeBtn" title="Select takes" aria-label="Select takes" aria-pressed="false">✓</button>
           <div class="menu" id="historyMenu">
             <button class="menu-btn" id="menuBtn" title="More" aria-label="More options" aria-haspopup="true" aria-expanded="false">⋮</button>
             <div class="menu__dropdown" id="menuDropdown" role="menu" hidden>
               <button class="menu__item" id="archivedBtn" role="menuitem" disabled>Archived</button>
-              <button class="menu__item danger" id="clearBtn" role="menuitem" disabled>Clear all</button>
             </div>
           </div>
         </div>
       </div>
+      <div class="history__selection-head" id="selectionHead" hidden>
+        <button class="selection-all" type="button" id="selectAllBtn">Select all shown</button>
+        <span>Tap takes to select</span>
+      </div>
       <div class="history__list" id="historyList">
         <div class="history__empty" id="historyEmpty">No recordings yet.</div>
+      </div>
+      <div class="history__bulkbar" id="bulkBar" hidden>
+        <span class="history__selected-count" id="selectedCount">0 selected</span>
+        <button class="bulk-btn" type="button" id="bulkArchiveBtn" disabled>Archive</button>
+        <button class="bulk-btn danger" type="button" id="bulkDeleteBtn" disabled>Delete</button>
       </div>
     </div>
   </div>
@@ -931,7 +1020,13 @@
     const historyEmpty = document.getElementById('historyEmpty');
     const historyCount = document.getElementById('historyCount');
     const historyTitle = document.getElementById('historyTitle');
-    const clearBtn = document.getElementById('clearBtn');
+    const selectModeBtn = document.getElementById('selectModeBtn');
+    const selectionHead = document.getElementById('selectionHead');
+    const selectAllBtn = document.getElementById('selectAllBtn');
+    const bulkBar = document.getElementById('bulkBar');
+    const selectedCount = document.getElementById('selectedCount');
+    const bulkArchiveBtn = document.getElementById('bulkArchiveBtn');
+    const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
     const menuBtn = document.getElementById('menuBtn');
     const menuDropdown = document.getElementById('menuDropdown');
     const confirmDialog = document.getElementById('confirmDialog');
@@ -980,6 +1075,8 @@
     let nowPlayingEl = null;
     let historyAudio = null;
     let historyFilter = 'active'; // 'active' | 'keepers' | 'archived'
+    let historySelecting = false;
+    const selectedTakeIds = new Set();
     let dbPromise = null;
     let sessionStopPromise = null;
     let historyPlayRequest = 0;
@@ -1992,6 +2089,7 @@
       URL.revokeObjectURL(item.url);
       const idx = history.findIndex(h => h.id === item.id);
       if (idx >= 0) history.splice(idx, 1);
+      selectedTakeIds.delete(item.id);
       if (history.length === 0) takeNum = 0;
       renderHistory();
       Promise.all([deleteClip(item.id), persistTakeNum()]).catch(err => {
@@ -2045,21 +2143,107 @@
       input.addEventListener('blur', () => finish(true));
     }
 
+    function selectedVisibleTakes() {
+      return visibleHistory().filter(item => selectedTakeIds.has(item.id));
+    }
+
+    function setHistorySelecting(selecting) {
+      historySelecting = selecting;
+      selectedTakeIds.clear();
+      if (selecting && historyAudio) stopHistoryPlayback();
+      renderHistory();
+    }
+
+    function toggleTakeSelection(item) {
+      if (selectedTakeIds.has(item.id)) {
+        selectedTakeIds.delete(item.id);
+      } else {
+        selectedTakeIds.add(item.id);
+      }
+      renderHistory();
+    }
+
+    async function archiveSelectedTakes() {
+      const selected = selectedVisibleTakes();
+      if (selected.length === 0) return;
+
+      const restoring = historyFilter === 'archived';
+      const now = new Date();
+      selected.forEach(item => {
+        item.archived = !restoring;
+        item.archivedAt = restoring ? null : now;
+        if (historyAudio && nowPlayingEl && nowPlayingEl.dataset.id === item.id) {
+          stopHistoryPlayback();
+        }
+      });
+
+      setHistorySelecting(false);
+      try {
+        await Promise.all(selected.map(item => saveClip(item)));
+      } catch (err) {
+        console.warn('Could not update selected takes in IndexedDB', err);
+      }
+    }
+
+    async function deleteSelectedTakes() {
+      const selected = selectedVisibleTakes();
+      if (selected.length === 0) return;
+
+      const keeperCount = selected.filter(item => item.starred).length;
+      const takeLabel = selected.length === 1 ? 'take' : 'takes';
+      const keeperWarning = keeperCount > 0
+        ? ' Includes ' + keeperCount + ' ' + (keeperCount === 1 ? 'keeper' : 'keepers') + '.'
+        : '';
+      const ok = await askConfirm(
+        'Permanently delete ' + selected.length + ' selected ' + takeLabel + '?' +
+          keeperWarning + ' This cannot be undone.',
+        'Delete ' + selected.length
+      );
+      if (!ok) return;
+
+      const selectedIds = new Set(selected.map(item => item.id));
+      if (historyAudio && nowPlayingEl && selectedIds.has(nowPlayingEl.dataset.id)) {
+        stopHistoryPlayback();
+      }
+      selected.forEach(item => URL.revokeObjectURL(item.url));
+      for (let i = history.length - 1; i >= 0; i--) {
+        if (selectedIds.has(history[i].id)) history.splice(i, 1);
+      }
+      if (history.length === 0) takeNum = 0;
+
+      historySelecting = false;
+      selectedTakeIds.clear();
+      renderHistory();
+      try {
+        await Promise.all(selected.map(item => deleteClip(item.id)));
+        await persistTakeNum();
+      } catch (err) {
+        console.warn('Could not delete selected takes from IndexedDB', err);
+      }
+    }
+
     function renderHistory() {
       const active = history.filter(i => !i.archived);
       const archived = history.filter(i => i.archived);
       const starredActive = active.filter(i => i.starred);
       const items = visibleHistory();
+      const historyIds = new Set(history.map(item => item.id));
+      selectedTakeIds.forEach(id => {
+        if (!historyIds.has(id)) selectedTakeIds.delete(id);
+      });
 
       const hasTakes = history.length > 0;
       historySection.hidden = !hasTakes;
       cardEl.classList.toggle('has-history', hasTakes);
-      clearBtn.disabled = !hasTakes;
 
       if (!hasTakes) {
         historyList.innerHTML = '';
         nowPlayingEl = null;
         historyFilter = 'active';
+        historySelecting = false;
+        selectedTakeIds.clear();
+        selectionHead.hidden = true;
+        bulkBar.hidden = true;
         return;
       }
 
@@ -2076,13 +2260,34 @@
           : 'History';
 
       keepersBtn.classList.toggle('on', historyFilter === 'keepers');
+      keepersBtn.setAttribute('aria-pressed', String(historyFilter === 'keepers'));
+      keepersBtn.title = historyFilter === 'keepers' ? 'Show all takes' : 'Show keepers only';
+      keepersBtn.setAttribute('aria-label', keepersBtn.title);
+      keepersBtn.hidden = historyFilter === 'archived';
       keepersBtn.disabled = starredActive.length === 0 && historyFilter !== 'keepers';
-      archivedBtn.classList.toggle('on', historyFilter === 'archived');
       archivedBtn.disabled = archived.length === 0 && historyFilter !== 'archived';
-      archivedBtn.textContent = 'Archived';
+      archivedBtn.textContent = historyFilter === 'archived'
+        ? 'Back to history'
+        : 'Archived (' + archived.length + ')';
       archivedBtn.title = historyFilter === 'archived'
         ? 'Leave archived view'
         : 'Show archived takes';
+
+      selectModeBtn.classList.toggle('on', historySelecting);
+      selectModeBtn.setAttribute('aria-pressed', String(historySelecting));
+      selectModeBtn.title = historySelecting ? 'Finish selecting' : 'Select takes';
+      selectModeBtn.setAttribute('aria-label', selectModeBtn.title);
+      selectModeBtn.disabled = items.length === 0;
+
+      const selected = items.filter(item => selectedTakeIds.has(item.id));
+      const allShownSelected = items.length > 0 && selected.length === items.length;
+      selectionHead.hidden = !historySelecting || items.length === 0;
+      bulkBar.hidden = !historySelecting || items.length === 0;
+      selectAllBtn.textContent = allShownSelected ? 'Clear selection' : 'Select all shown';
+      selectedCount.textContent = selected.length + ' selected';
+      bulkArchiveBtn.textContent = historyFilter === 'archived' ? 'Restore' : 'Archive';
+      bulkArchiveBtn.disabled = selected.length === 0;
+      bulkDeleteBtn.disabled = selected.length === 0;
 
       if (items.length === 0) {
         const emptyMsg = historyFilter === 'keepers'
@@ -2098,17 +2303,28 @@
       historyList.innerHTML = '';
       items.forEach(item => {
         const row = document.createElement('div');
-        row.className = 'clip' + (item.starred ? ' starred' : '');
+        const isSelected = selectedTakeIds.has(item.id);
+        row.className = 'clip' +
+          (item.starred ? ' starred' : '') +
+          (historySelecting ? ' selecting' : '') +
+          (isSelected ? ' selected' : '');
         if (item.id === pendingEnterId) {
           row.classList.add('clip--enter');
           pendingEnterId = null;
         }
         row.dataset.id = item.id;
 
-        const playBtn = document.createElement('button');
-        playBtn.className = 'clip__play';
-        playBtn.textContent = '▶';
-        playBtn.title = 'Play';
+        const leadingBtn = document.createElement('button');
+        if (historySelecting) {
+          leadingBtn.className = 'clip__select';
+          leadingBtn.textContent = '✓';
+          leadingBtn.title = isSelected ? 'Deselect ' + clipTitle(item) : 'Select ' + clipTitle(item);
+          leadingBtn.setAttribute('aria-pressed', String(isSelected));
+        } else {
+          leadingBtn.className = 'clip__play';
+          leadingBtn.textContent = '▶';
+          leadingBtn.title = 'Play';
+        }
 
         const meta = document.createElement('div');
         meta.className = 'clip__meta';
@@ -2116,7 +2332,7 @@
         const titleEl = document.createElement('div');
         titleEl.className = 'clip__title';
         titleEl.textContent = clipTitle(item);
-        titleEl.title = 'Click to rename';
+        titleEl.title = historySelecting ? '' : 'Click to rename';
 
         const subEl = document.createElement('div');
         subEl.className = 'clip__sub';
@@ -2125,47 +2341,65 @@
         meta.appendChild(titleEl);
         meta.appendChild(subEl);
 
-        const actions = document.createElement('div');
-        actions.className = 'clip__actions';
+        if (historySelecting) {
+          const selectItem = () => toggleTakeSelection(item);
+          leadingBtn.addEventListener('click', e => {
+            e.stopPropagation();
+            selectItem();
+          });
+          row.addEventListener('click', selectItem);
+        } else {
+          leadingBtn.addEventListener('click', () => playClip(item, row, leadingBtn));
+          titleEl.addEventListener('click', () => startRename(item, titleEl));
+        }
 
-        const more = document.createElement('div');
-        more.className = 'clip__more';
-
-        const archiveBtn = makeIconBtn(
-          'archive' + (item.archived ? ' on' : ''),
-          item.archived ? 'Unarchive' : 'Archive',
-          item.archived ? 'unarchive' : 'archive'
-        );
-        const delBtn = makeIconBtn('danger', 'Delete', 'trash');
-
-        const starBtn = document.createElement('button');
-        starBtn.className = 'clip__btn primary star' + (item.starred ? ' on' : '');
-        starBtn.textContent = item.starred ? '★' : '☆';
-        starBtn.title = item.starred ? 'Unstar keeper' : 'Star as keeper';
-
-        const dlBtn = makeIconBtn('primary', 'Download', 'download');
-
-        playBtn.addEventListener('click', () => playClip(item, row, playBtn));
-        titleEl.addEventListener('click', () => startRename(item, titleEl));
-        starBtn.addEventListener('click', () => toggleStar(item));
-        archiveBtn.addEventListener('click', () => toggleArchive(item));
-        delBtn.addEventListener('click', () => removeTake(item));
-        dlBtn.addEventListener('click', () => {
-          const a = document.createElement('a');
-          a.href = item.url;
-          a.download = sanitizeFilename(clipTitle(item)) + '.' + item.ext;
-          a.click();
-        });
-
-        more.appendChild(archiveBtn);
-        more.appendChild(delBtn);
-        actions.appendChild(more);
-        actions.appendChild(starBtn);
-        actions.appendChild(dlBtn);
-
-        row.appendChild(playBtn);
+        row.appendChild(leadingBtn);
         row.appendChild(meta);
-        row.appendChild(actions);
+
+        if (historySelecting) {
+          const keeperMark = document.createElement('span');
+          keeperMark.className = 'clip__keeper-mark';
+          keeperMark.textContent = item.starred ? '★' : '';
+          keeperMark.setAttribute('aria-label', item.starred ? 'Keeper' : '');
+          row.appendChild(keeperMark);
+        } else {
+          const actions = document.createElement('div');
+          actions.className = 'clip__actions';
+
+          const more = document.createElement('div');
+          more.className = 'clip__more';
+
+          const archiveBtn = makeIconBtn(
+            'archive' + (item.archived ? ' on' : ''),
+            item.archived ? 'Unarchive' : 'Archive',
+            item.archived ? 'unarchive' : 'archive'
+          );
+          const delBtn = makeIconBtn('danger', 'Delete', 'trash');
+
+          const starBtn = document.createElement('button');
+          starBtn.className = 'clip__btn primary star' + (item.starred ? ' on' : '');
+          starBtn.textContent = item.starred ? '★' : '☆';
+          starBtn.title = item.starred ? 'Unstar keeper' : 'Star as keeper';
+
+          const dlBtn = makeIconBtn('primary', 'Download', 'download');
+
+          starBtn.addEventListener('click', () => toggleStar(item));
+          archiveBtn.addEventListener('click', () => toggleArchive(item));
+          delBtn.addEventListener('click', () => removeTake(item));
+          dlBtn.addEventListener('click', () => {
+            const a = document.createElement('a');
+            a.href = item.url;
+            a.download = sanitizeFilename(clipTitle(item)) + '.' + item.ext;
+            a.click();
+          });
+
+          more.appendChild(archiveBtn);
+          more.appendChild(delBtn);
+          actions.appendChild(more);
+          actions.appendChild(starBtn);
+          actions.appendChild(dlBtn);
+          row.appendChild(actions);
+        }
         historyList.appendChild(row);
       });
     }
@@ -2313,39 +2547,33 @@
     keepersBtn.addEventListener('click', () => {
       historyFilter = historyFilter === 'keepers' ? 'active' : 'keepers';
       setMenuOpen(false);
-      renderHistory();
+      setHistorySelecting(false);
     });
 
     archivedBtn.addEventListener('click', () => {
       historyFilter = historyFilter === 'archived' ? 'active' : 'archived';
       setMenuOpen(false);
-      renderHistory();
+      setHistorySelecting(false);
     });
 
-    clearBtn.addEventListener('click', async (e) => {
-      e.stopPropagation();
+    selectModeBtn.addEventListener('click', () => {
       setMenuOpen(false);
-      if (history.length === 0) return;
-      const ok = await askConfirm(
-        'Clear all recordings? This permanently deletes every take, including keepers and archived ones.',
-        'Clear all'
-      );
-      if (!ok) return;
-
-      if (historyAudio) stopHistoryPlayback();
-      const remove = history.slice();
-      remove.forEach(item => URL.revokeObjectURL(item.url));
-      history.length = 0;
-      takeNum = 0;
-      historyFilter = 'active';
-      renderHistory();
-      try {
-        await Promise.all(remove.map(item => deleteClip(item.id)));
-        await persistTakeNum();
-      } catch (err) {
-        console.warn('Could not clear recordings from IndexedDB', err);
-      }
+      setHistorySelecting(!historySelecting);
     });
+
+    selectAllBtn.addEventListener('click', () => {
+      const items = visibleHistory();
+      const allShownSelected = items.length > 0 && items.every(item => selectedTakeIds.has(item.id));
+      if (allShownSelected) {
+        items.forEach(item => selectedTakeIds.delete(item.id));
+      } else {
+        items.forEach(item => selectedTakeIds.add(item.id));
+      }
+      renderHistory();
+    });
+
+    bulkArchiveBtn.addEventListener('click', archiveSelectedTakes);
+    bulkDeleteBtn.addEventListener('click', deleteSelectedTakes);
 
     phaseEl.addEventListener('click', () => {
       if (loopAudio) skipLoopPlayback();
