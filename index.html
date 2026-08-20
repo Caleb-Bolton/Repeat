@@ -1150,9 +1150,20 @@
     const LEGACY_METRO_KEY = 'repeat-metronome';
     const SETTINGS_KEY = 'repeat-settings';
     const ARCHIVED_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+    const PCM_WORKLET_URL = './pcm-capture-worklet.js';
 
     let audioCtx, analyser, sourceNode, micStream;
     let mediaRecorder, chunks = [];
+    let pcmWorkletNode, pcmSilentGain;
+    let captureBackend = 'mediarecorder';
+    let pcmSampleRate = 0;
+    let pcmTakeChunks = [];
+    let pcmTakeSampleCount = 0;
+    let pcmTakeActive = false;
+    let pcmTakeEndPromise = null;
+    let pcmTakeEndResolve = null;
+    let pcmTakeEndTimer = null;
+    let pcmFinalizePromise = null;
     let rafId = null;
     let running = false;
     let recording = false;
@@ -1300,6 +1311,15 @@
       return new Blob([bytes], { type: type || 'audio/webm' });
     }
 
+    function audioExtension(type, fallback = 'webm') {
+      const normalized = String(type || '').toLowerCase();
+      if (normalized.includes('wav') || normalized.includes('wave')) return 'wav';
+      if (normalized.includes('ogg')) return 'ogg';
+      if (normalized.includes('mp4') || normalized.includes('m4a')) return 'mp4';
+      if (normalized.includes('webm')) return 'webm';
+      return fallback;
+    }
+
     async function migrateFromLocalStorage() {
       const raw = localStorage.getItem(LEGACY_HISTORY_KEY);
       if (raw) {
@@ -1316,7 +1336,7 @@
               blob: base64ToBlob(saved.data, type),
               duration: Number(saved.duration) || 0,
               time: saved.time,
-              ext: saved.ext || 'webm',
+              ext: saved.ext || audioExtension(type),
               type,
               starred: !!saved.starred,
             });
@@ -1383,7 +1403,7 @@
           blob: saved.blob,
           duration: Number(saved.duration) || 0,
           time: new Date(saved.time),
-          ext: saved.ext || 'webm',
+          ext: saved.ext || audioExtension(saved.type || saved.blob.type),
           type: saved.type || saved.blob.type || 'audio/webm',
           starred: !!saved.starred,
           archived: !!saved.archived,
@@ -1863,6 +1883,70 @@
       audioCtx = context;
       sourceNode = source;
       analyser = nextAnalyser;
+      await initializePcmCapture(context, source);
+    }
+
+    function appendPcmSamples(buffer) {
+      if (!pcmTakeActive || !(buffer instanceof ArrayBuffer)) return;
+      const samples = new Float32Array(buffer);
+      if (samples.length === 0) return;
+      pcmTakeChunks.push(samples);
+      pcmTakeSampleCount += samples.length;
+    }
+
+    function handlePcmWorkletMessage(event) {
+      const message = event.data || {};
+      if (message.type === 'take-start' || message.type === 'pcm') {
+        appendPcmSamples(message.samples);
+        return;
+      }
+      if (message.type !== 'take-end') return;
+
+      pcmTakeActive = false;
+      clearTimeout(pcmTakeEndTimer);
+      pcmTakeEndTimer = null;
+      const resolve = pcmTakeEndResolve;
+      pcmTakeEndResolve = null;
+      if (resolve) resolve();
+    }
+
+    async function initializePcmCapture(context, source) {
+      captureBackend = 'mediarecorder';
+      pcmSampleRate = 0;
+      if (!context.audioWorklet || typeof AudioWorkletNode === 'undefined') return;
+
+      let worklet = null;
+      let silentGain = null;
+      try {
+        await context.audioWorklet.addModule(PCM_WORKLET_URL);
+        worklet = new AudioWorkletNode(context, 'pcm-capture-processor', {
+          numberOfInputs: 1,
+          numberOfOutputs: 1,
+          outputChannelCount: [1],
+        });
+        silentGain = context.createGain();
+        silentGain.gain.value = 0;
+        worklet.port.onmessage = handlePcmWorkletMessage;
+        source.connect(worklet);
+        worklet.connect(silentGain);
+        silentGain.connect(context.destination);
+
+        pcmWorkletNode = worklet;
+        pcmSilentGain = silentGain;
+        pcmSampleRate = context.sampleRate;
+        captureBackend = 'worklet';
+      } catch (err) {
+        if (worklet) {
+          worklet.port.onmessage = null;
+          try { source.disconnect(worklet); } catch (_) {}
+          try { worklet.port.close(); } catch (_) {}
+          try { worklet.disconnect(); } catch (_) {}
+        }
+        if (silentGain) {
+          try { silentGain.disconnect(); } catch (_) {}
+        }
+        console.warn('AudioWorklet unavailable; using MediaRecorder fallback', err);
+      }
     }
 
     function stop(options = {}) {
@@ -1875,7 +1959,7 @@
 
     async function stopSession({ pauseMetronome = true } = {}) {
       const recorder = mediaRecorder;
-      const hasUnsavedRecording = recorder && !recordingFinalized;
+      const hasUnsavedRecording = hasSpoken && !recordingFinalized;
       running = false;
       armed = false;
       recording = false;
@@ -1894,7 +1978,12 @@
       resetPhaseVisual();
       setStatus('idle');
 
-      if (hasUnsavedRecording) {
+      if (pcmFinalizePromise) {
+        await pcmFinalizePromise;
+      } else if (hasUnsavedRecording && captureBackend === 'worklet') {
+        // The worklet flushes every sample through the stop boundary before WAV encoding.
+        await finalizePcmRecording();
+      } else if (hasUnsavedRecording && recorder) {
         // Finalize and persist the in-progress take before tearing down the mic.
         await new Promise(resolve => {
           recorder.onstop = async () => {
@@ -1937,11 +2026,25 @@
       const stream = micStream;
       const context = audioCtx;
       const source = sourceNode;
+      const worklet = pcmWorkletNode;
+      const silentGain = pcmSilentGain;
       micStream = null;
       audioCtx = null;
       sourceNode = null;
       analyser = null;
+      pcmWorkletNode = null;
+      pcmSilentGain = null;
+      captureBackend = 'mediarecorder';
 
+      if (worklet) {
+        worklet.port.onmessage = null;
+        try { worklet.port.postMessage({ type: 'reset' }); } catch (_) {}
+        try { worklet.port.close(); } catch (_) {}
+        try { worklet.disconnect(); } catch (_) {}
+      }
+      if (silentGain) {
+        try { silentGain.disconnect(); } catch (_) {}
+      }
       if (source) {
         try { source.disconnect(); } catch (_) {}
       }
@@ -1949,6 +2052,17 @@
       if (context && context.state !== 'closed') {
         try { await context.close(); } catch (_) {}
       }
+
+      clearTimeout(pcmTakeEndTimer);
+      pcmTakeEndTimer = null;
+      const resolveTakeEnd = pcmTakeEndResolve;
+      pcmTakeEndResolve = null;
+      if (resolveTakeEnd) resolveTakeEnd();
+      pcmTakeEndPromise = null;
+      pcmTakeActive = false;
+      pcmTakeChunks = [];
+      pcmTakeSampleCount = 0;
+      pcmSampleRate = 0;
     }
 
     async function resumeCaptureAfterPlayback() {
@@ -1985,15 +2099,22 @@
     }
 
     function beginRecording() {
-      // Arm first: wait for audio past the threshold before we actually start
-      // recording, so each take starts at the moment of first speech.
+      // Arm first: the worklet continuously keeps only the latest 300 ms while
+      // the existing analyser-based threshold logic waits for the trigger.
       if (!running) return;
       chunks = [];
+      pcmTakeChunks = [];
+      pcmTakeSampleCount = 0;
+      pcmTakeActive = false;
+      pcmTakeEndPromise = null;
       hasSpoken = false;
       recordingFinalized = true;
       silenceStart = null;
       armed = true;
       recording = false;
+      if (captureBackend === 'worklet' && pcmWorkletNode) {
+        pcmWorkletNode.port.postMessage({ type: 'arm' });
+      }
       setPhaseProgress(0);
       setSilenceProgress(-1);
       setPhaseBloom(0);
@@ -2004,16 +2125,124 @@
       armed = false;
       hasSpoken = true;
       silenceStart = null;
-      mediaRecorder = createHighQualityRecorder(micStream);
-      mediaRecorder.ondataavailable = e => {
-        if (e.data.size > 0) chunks.push(e.data);
-      };
-      mediaRecorder.onstop = handleRecordingStop;
       recordingFinalized = false;
-      mediaRecorder.start();
       recordStartTime = performance.now();
       recording = true;
+
+      if (captureBackend === 'worklet' && pcmWorkletNode) {
+        pcmTakeChunks = [];
+        pcmTakeSampleCount = 0;
+        pcmTakeActive = true;
+        pcmWorkletNode.port.postMessage({ type: 'start' });
+      } else {
+        mediaRecorder = createHighQualityRecorder(micStream);
+        mediaRecorder.ondataavailable = e => {
+          if (e.data.size > 0) chunks.push(e.data);
+        };
+        mediaRecorder.onstop = handleRecordingStop;
+        mediaRecorder.start();
+      }
       setStatus('recording');
+    }
+
+    function encodeMono16BitWav(pcmChunks, sampleCount, sampleRate) {
+      const bytesPerSample = 2;
+      const dataBytes = sampleCount * bytesPerSample;
+      const buffer = new ArrayBuffer(44 + dataBytes);
+      const view = new DataView(buffer);
+
+      const writeAscii = (offset, value) => {
+        for (let i = 0; i < value.length; i++) {
+          view.setUint8(offset + i, value.charCodeAt(i));
+        }
+      };
+
+      writeAscii(0, 'RIFF');
+      view.setUint32(4, 36 + dataBytes, true);
+      writeAscii(8, 'WAVE');
+      writeAscii(12, 'fmt ');
+      view.setUint32(16, 16, true);
+      view.setUint16(20, 1, true);
+      view.setUint16(22, 1, true);
+      view.setUint32(24, sampleRate, true);
+      view.setUint32(28, sampleRate * bytesPerSample, true);
+      view.setUint16(32, bytesPerSample, true);
+      view.setUint16(34, 16, true);
+      writeAscii(36, 'data');
+      view.setUint32(40, dataBytes, true);
+
+      let byteOffset = 44;
+      for (const chunk of pcmChunks) {
+        for (let i = 0; i < chunk.length; i++) {
+          const sample = Math.max(-1, Math.min(1, chunk[i]));
+          view.setInt16(byteOffset, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
+          byteOffset += bytesPerSample;
+        }
+      }
+
+      return new Blob([buffer], { type: 'audio/wav' });
+    }
+
+    function waitForPcmTakeEnd() {
+      if (pcmTakeEndPromise) return pcmTakeEndPromise;
+      if (!pcmTakeActive || !pcmWorkletNode) return Promise.resolve();
+
+      pcmTakeEndPromise = new Promise(resolve => {
+        pcmTakeEndResolve = resolve;
+        // Do not let a failed processor prevent session teardown indefinitely.
+        pcmTakeEndTimer = setTimeout(() => {
+          pcmTakeActive = false;
+          pcmTakeEndResolve = null;
+          resolve();
+        }, 500);
+        try {
+          pcmWorkletNode.port.postMessage({ type: 'stop' });
+        } catch (_) {
+          clearTimeout(pcmTakeEndTimer);
+          pcmTakeEndTimer = null;
+          pcmTakeActive = false;
+          pcmTakeEndResolve = null;
+          resolve();
+        }
+      });
+      return pcmTakeEndPromise;
+    }
+
+    function finalizePcmRecording() {
+      if (pcmFinalizePromise) return pcmFinalizePromise;
+
+      pcmFinalizePromise = (async () => {
+        await waitForPcmTakeEnd();
+        clearTimeout(pcmTakeEndTimer);
+        pcmTakeEndTimer = null;
+        pcmTakeEndPromise = null;
+        pcmTakeActive = false;
+
+        const takeChunks = pcmTakeChunks;
+        const sampleCount = pcmTakeSampleCount;
+        const sampleRate = pcmSampleRate;
+        pcmTakeChunks = [];
+        pcmTakeSampleCount = 0;
+        recordingFinalized = true;
+
+        if (!hasSpoken || sampleCount === 0 || !sampleRate) {
+          if (running) beginRecording();
+          return;
+        }
+
+        const blob = encodeMono16BitWav(takeChunks, sampleCount, sampleRate);
+        const duration = sampleCount / sampleRate;
+        addToHistory(blob, 'audio/wav', duration);
+
+        // Preserve the iOS routing workaround by releasing all capture nodes
+        // and the microphone before immediate playback begins.
+        await teardownMedia();
+        if (running) playback(blob, duration);
+      })().finally(() => {
+        pcmFinalizePromise = null;
+      });
+
+      return pcmFinalizePromise;
     }
 
     function createHighQualityRecorder(stream) {
@@ -2061,7 +2290,7 @@
 
     function addToHistory(blob, type, duration) {
       takeNum++;
-      const ext = type.includes('ogg') ? 'ogg' : (type.includes('mp4') ? 'mp4' : 'webm');
+      const ext = audioExtension(type);
       const item = {
         id: Date.now() + '-' + takeNum,
         n: takeNum,
@@ -2798,7 +3027,10 @@
               const silencePct = ((performance.now() - silenceStart) / Number(durSlider.value)) * 100;
               setSilenceProgress(Math.min(100, silencePct));
               if (silencePct >= 100) {
-                if (mediaRecorder && mediaRecorder.state === 'recording') {
+                if (captureBackend === 'worklet' && pcmTakeActive) {
+                  recording = false;
+                  finalizePcmRecording();
+                } else if (mediaRecorder && mediaRecorder.state === 'recording') {
                   recording = false;
                   mediaRecorder.stop();
                 }
