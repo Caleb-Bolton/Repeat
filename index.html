@@ -417,6 +417,76 @@
     .row label b { color: var(--text); font-weight: 600; flex: none; }
     input[type="range"] { width: 100%; accent-color: var(--accent); }
 
+    .audio-mode {
+      display: grid;
+      gap: 8px;
+      margin: 2px 0 0;
+      padding: 12px 0 0;
+      border-top: 1px solid #272b3b;
+    }
+    .audio-mode__label {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .audio-mode__options {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .audio-mode__option {
+      position: relative;
+      min-width: 0;
+    }
+    .audio-mode__option input {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      pointer-events: none;
+    }
+    .audio-mode__option span {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      min-height: 40px;
+      padding: 9px 10px;
+      border-radius: 9px;
+      background: #2a2f42;
+      color: var(--muted);
+      box-shadow: inset 0 0 0 1px #3a4158;
+      font-size: 13px;
+      font-weight: 600;
+      text-align: center;
+      cursor: pointer;
+    }
+    .audio-mode__option svg {
+      width: 17px;
+      height: 17px;
+      flex: none;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .audio-mode__option input:checked + span {
+      background: rgba(91,140,255,0.12);
+      color: var(--accent);
+      box-shadow: inset 0 0 0 1px rgba(91,140,255,0.4);
+    }
+    .audio-mode__option input:focus-visible + span {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+    .audio-mode__help {
+      margin: 0;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.45;
+    }
+
     .metro-toggle {
       display: flex;
       align-items: center;
@@ -683,6 +753,8 @@
     }
     .clip__meta { flex: 1; min-width: 0; }
     .clip__title {
+      width: fit-content;
+      max-width: 100%;
       font-size: 13px;
       font-weight: 600;
       cursor: text;
@@ -932,6 +1004,36 @@
         <label>Silence duration <b id="durVal">1.5s</b></label>
         <input type="range" id="dur" min="300" max="4000" step="100" value="1500" />
       </div>
+      <div class="audio-mode" role="radiogroup" aria-labelledby="audioModeLabel" aria-describedby="audioModeHelp">
+        <p class="audio-mode__label" id="audioModeLabel">Recording mode</p>
+        <div class="audio-mode__options">
+          <label class="audio-mode__option">
+            <input type="radio" id="audioModeMusic" name="audioMode" value="music" checked />
+            <span>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M8.5 4.5A2.5 2.5 0 006 7v4a2.5 2.5 0 005 0V7a2.5 2.5 0 00-2.5-2.5z" />
+                <path d="M4 10.5a4.5 4.5 0 009 0M8.5 15v3M6 18h5" />
+                <path d="M17 6v8.2M17 7l4-1v7.2" />
+                <circle cx="15.5" cy="15.5" r="1.5" />
+                <circle cx="19.5" cy="14.5" r="1.5" />
+              </svg>
+              Music &amp; singing
+            </span>
+          </label>
+          <label class="audio-mode__option">
+            <input type="radio" id="audioModeSpeech" name="audioMode" value="speech" />
+            <span>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="8" cy="7" r="3" />
+                <path d="M3.5 19v-2.2A4.8 4.8 0 018.3 12h.4a4.7 4.7 0 013.2 1.2" />
+                <path d="M15 8.5c1.3.8 2 2 2 3.5s-.7 2.7-2 3.5M18 6c2.2 1.4 3.5 3.5 3.5 6S20.2 16.6 18 18" />
+              </svg>
+              Speech
+            </span>
+          </label>
+        </div>
+        <p class="audio-mode__help" id="audioModeHelp">Natural, unprocessed sound. Use headphones with the metronome to prevent click bleed. Changes during an active session apply after the current take.</p>
+      </div>
     </div>
 
     <div class="settings" id="metroPanel" hidden>
@@ -1016,6 +1118,8 @@
     const durSlider = document.getElementById('dur');
     const threshVal = document.getElementById('threshVal');
     const durVal = document.getElementById('durVal');
+    const audioModeInputs = Array.from(document.querySelectorAll('input[name="audioMode"]'));
+    const audioModeHelp = document.getElementById('audioModeHelp');
     const historyList = document.getElementById('historyList');
     const historyEmpty = document.getElementById('historyEmpty');
     const historyCount = document.getElementById('historyCount');
@@ -1663,6 +1767,7 @@
         localStorage.setItem(SETTINGS_KEY, JSON.stringify({
           thresh: Number(threshSlider.value),
           dur: Number(durSlider.value),
+          audioMode: selectedAudioMode(),
         }));
       } catch (err) {
         console.warn('Could not save settings', err);
@@ -1676,13 +1781,28 @@
           const prefs = JSON.parse(raw);
           if (prefs.thresh != null) threshSlider.value = prefs.thresh;
           if (prefs.dur != null) durSlider.value = prefs.dur;
+          if (prefs.audioMode === 'speech') {
+            document.getElementById('audioModeSpeech').checked = true;
+          }
         }
       } catch (err) {
         console.warn('Could not load settings', err);
       }
       threshVal.textContent = threshSlider.value + '%';
       durVal.textContent = (durSlider.value / 1000).toFixed(1) + 's';
+      updateAudioModeHelp();
       updateThresholdTick();
+    }
+
+    function selectedAudioMode() {
+      const selected = audioModeInputs.find(input => input.checked);
+      return selected ? selected.value : 'music';
+    }
+
+    function updateAudioModeHelp() {
+      audioModeHelp.textContent = selectedAudioMode() === 'speech'
+        ? 'Reduces background noise and speaker echo, with more consistent voice levels. Changes during an active session apply after the current take.'
+        : 'Natural, unprocessed sound. Use headphones with the metronome to prevent click bleed. Changes during an active session apply after the current take.';
     }
 
     threshSlider.addEventListener('input', () => {
@@ -1693,6 +1813,12 @@
     durSlider.addEventListener('input', () => {
       durVal.textContent = (durSlider.value / 1000).toFixed(1) + 's';
       persistSettings();
+    });
+    audioModeInputs.forEach(input => {
+      input.addEventListener('change', () => {
+        updateAudioModeHelp();
+        persistSettings();
+      });
     });
     loadSettings();
     phaseProgress.style.strokeDasharray = String(PHASE_C);
@@ -1726,11 +1852,12 @@
     }
 
     async function openCapture() {
+      const speechMode = selectedAudioMode() === 'speech';
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false,
+          echoCancellation: speechMode,
+          noiseSuppression: speechMode,
+          autoGainControl: speechMode,
         },
       });
       const AudioContextClass = window.AudioContext || window.webkitAudioContext;
