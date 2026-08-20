@@ -956,7 +956,7 @@
         </svg>
         <h1>Repeat</h1>
       </div>
-      <p class="sub">Speak. Pause. Hear it back.</p>
+      <p class="sub">Sing it. Say it. Play it back.</p>
     </div>
 
     <div class="phase idle" id="phase" aria-live="polite" aria-label="Ready">
@@ -1032,7 +1032,7 @@
             </span>
           </label>
         </div>
-        <p class="audio-mode__help" id="audioModeHelp">Natural, unprocessed sound. Use headphones with the metronome to prevent click bleed. Changes during an active session apply after the current take.</p>
+        <p class="audio-mode__help" id="audioModeHelp">Natural, unprocessed sound. Use headphones with the metronome to prevent click bleed. Changes take effect in the next take.</p>
       </div>
     </div>
 
@@ -1801,8 +1801,8 @@
 
     function updateAudioModeHelp() {
       audioModeHelp.textContent = selectedAudioMode() === 'speech'
-        ? 'Reduces background noise and speaker echo, with more consistent voice levels. Changes during an active session apply after the current take.'
-        : 'Natural, unprocessed sound. Use headphones with the metronome to prevent click bleed. Changes during an active session apply after the current take.';
+        ? 'Reduces background noise and speaker echo, with more consistent voice levels. Changes take effect in the next take.'
+        : 'Natural, unprocessed sound. Use headphones with the metronome to prevent click bleed. Changes take effect in the next take.';
     }
 
     threshSlider.addEventListener('input', () => {
