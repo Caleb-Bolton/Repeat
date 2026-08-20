@@ -2131,7 +2131,7 @@
           ? 'Today'
           : daysAgo === 1
             ? 'Yesterday'
-            : daysAgo + ' days ago';
+            : date.toLocaleDateString('en-US', { weekday: 'long' });
         return relativeDay + ', ' + time;
       }
 
