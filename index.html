@@ -2111,6 +2111,38 @@
       return m + ':' + String(sec).padStart(2, '0');
     }
 
+    function fmtTimestamp(value, now = new Date()) {
+      const date = value instanceof Date ? value : new Date(value);
+      if (!isFinite(date.getTime())) return '';
+
+      const time = date.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+      });
+      const calendarDay = current => Date.UTC(
+        current.getFullYear(),
+        current.getMonth(),
+        current.getDate()
+      );
+      const daysAgo = (calendarDay(now) - calendarDay(date)) / (24 * 60 * 60 * 1000);
+
+      if (daysAgo >= 0 && daysAgo < 7) {
+        const relativeDay = daysAgo === 0
+          ? 'Today'
+          : daysAgo === 1
+            ? 'Yesterday'
+            : daysAgo + ' days ago';
+        return relativeDay + ', ' + time;
+      }
+
+      const dateParts = date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        ...(date.getFullYear() === now.getFullYear() ? {} : { year: 'numeric' }),
+      });
+      return dateParts + ', ' + time;
+    }
+
     function clipTitle(item) {
       const name = (item.name || '').trim();
       return name || ('Take ' + item.n);
@@ -2473,7 +2505,7 @@
 
         const subEl = document.createElement('div');
         subEl.className = 'clip__sub';
-        subEl.textContent = fmtDuration(item.duration) + ' · ' + item.time.toLocaleTimeString();
+        subEl.textContent = fmtDuration(item.duration) + ' · ' + fmtTimestamp(item.time);
 
         meta.appendChild(titleEl);
         meta.appendChild(subEl);
