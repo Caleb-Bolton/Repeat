@@ -1726,7 +1726,13 @@
     }
 
     async function openCapture() {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+        },
+      });
       const AudioContextClass = window.AudioContext || window.webkitAudioContext;
       const context = new AudioContextClass();
       const source = context.createMediaStreamSource(stream);
@@ -1749,7 +1755,7 @@
       return sessionStopPromise;
     }
 
-    async function stopSession({ resumeMetronome = true } = {}) {
+    async function stopSession({ pauseMetronome = true } = {}) {
       const recorder = mediaRecorder;
       const hasUnsavedRecording = recorder && !recordingFinalized;
       running = false;
@@ -1757,8 +1763,12 @@
       recording = false;
       if (rafId) cancelAnimationFrame(rafId);
 
-      stopLoopPlayback({ resumeListening: false, resumeMetronome });
-      stopHistoryPlayback({ resumeMetronome });
+      if (pauseMetronome) {
+        metroResumeAfterPlayback = false;
+        stopMetronome();
+      }
+      stopLoopPlayback({ resumeListening: false, resumeMetronome: false });
+      stopHistoryPlayback({ resumeMetronome: false });
 
       sessionBtn.classList.remove('running');
       sessionIcon.textContent = '▶';
@@ -2496,7 +2506,7 @@
       // Historical playback pauses the session. This also finalizes the current
       // recording and waits for every pending take to reach IndexedDB.
       if (running || sessionStopPromise) {
-        await stop({ resumeMetronome: false });
+        await stop({ pauseMetronome: false });
         if (request !== historyPlayRequest) return;
       } else {
         stopLoopPlayback({ resumeListening: false, resumeMetronome: false });
