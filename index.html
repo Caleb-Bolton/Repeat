@@ -575,7 +575,7 @@
       font-size: 15px;
       font-weight: 700;
     }
-    .history__head span { color: var(--muted); font-size: 12px; }
+    .history__head h2 span { color: var(--muted); font-size: 12px; }
     .menu {
       position: relative;
       flex: none;
@@ -621,6 +621,15 @@
       font-size: 13px;
       font-weight: 600;
       text-align: left;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+    }
+    .menu__item-icon {
+      width: 17px;
+      height: 17px;
+      flex: none;
+      fill: currentColor;
     }
     .menu__item:hover:not(:disabled) {
       background: #2a2f42;
@@ -757,9 +766,16 @@
     .clip__keeper-mark {
       flex: none;
       width: 32px;
-      text-align: center;
       color: #ffc44d;
-      font-size: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .clip__keeper-mark svg {
+      width: 16px;
+      height: 16px;
+      display: block;
+      fill: currentColor;
     }
     .clip__meta { flex: 1; min-width: 0; }
     .clip__title {
@@ -812,11 +828,8 @@
       width: 15px;
       height: 15px;
       display: block;
-      fill: none;
-      stroke: currentColor;
-      stroke-width: 2;
-      stroke-linecap: round;
-      stroke-linejoin: round;
+      fill: currentColor;
+      stroke: none;
     }
     .clip__btn.primary {
       background: var(--accent);
@@ -890,6 +903,12 @@
       background: rgba(255,196,77,0.14);
       color: #ffc44d;
       box-shadow: inset 0 0 0 1px rgba(255,196,77,0.35);
+    }
+    .filter-btn svg {
+      width: 16px;
+      height: 16px;
+      display: block;
+      fill: currentColor;
     }
     .filter-btn:disabled { opacity: 0.4; }
     .filter-btn[hidden] { display: none !important; }
@@ -1061,12 +1080,26 @@
       <div class="history__head">
         <h2><span id="historyTitle">History</span> <span id="historyCount">(0)</span></h2>
         <div class="history__actions">
-          <button class="filter-btn" id="keepersBtn" title="Show keepers only" aria-label="Show keepers only" aria-pressed="false">★</button>
+          <button class="filter-btn" id="keepersBtn" title="Show keepers only" aria-label="Show keepers only" aria-pressed="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12,17.27L18.18,21L16.54,13.97L22,9.24L14.81,8.62L12,2L9.19,8.62L2,9.24L7.45,13.97L5.82,21L12,17.27Z" />
+            </svg>
+          </button>
           <div class="menu" id="historyMenu">
             <button class="menu-btn" id="menuBtn" title="More" aria-label="More options" aria-haspopup="true" aria-expanded="false">⋮</button>
             <div class="menu__dropdown" id="menuDropdown" role="menu" hidden>
-              <button class="menu__item" id="selectModeBtn" role="menuitem" aria-pressed="false">Edit</button>
-              <button class="menu__item" id="archivedBtn" role="menuitem" disabled>Archived</button>
+              <button class="menu__item" id="selectModeBtn" role="menuitem" aria-pressed="false">
+                <svg class="menu__item-icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z" />
+                </svg>
+                <span id="selectModeLabel">Edit</span>
+              </button>
+              <button class="menu__item" id="archivedBtn" role="menuitem" disabled>
+                <svg class="menu__item-icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M3,3H21V7H3V3M4,8H20V21H4V8M9.5,11A0.5,0.5 0 0,0 9,11.5V13H15V11.5A0.5,0.5 0 0,0 14.5,11H9.5Z" />
+                </svg>
+                <span id="archivedLabel">Archived</span>
+              </button>
             </div>
           </div>
         </div>
@@ -1127,6 +1160,8 @@
     const historyCount = document.getElementById('historyCount');
     const historyTitle = document.getElementById('historyTitle');
     const selectModeBtn = document.getElementById('selectModeBtn');
+    const selectModeLabel = document.getElementById('selectModeLabel');
+    const archivedLabel = document.getElementById('archivedLabel');
     const selectionHead = document.getElementById('selectionHead');
     const selectAllBtn = document.getElementById('selectAllBtn');
     const bulkBar = document.getElementById('bulkBar');
@@ -2413,15 +2448,18 @@
     }
 
     const ICONS = {
-      download: '<path d="M12 3v12"/><path d="M8 11l4 4 4-4"/><path d="M5 19h14"/>',
-      archive: '<path d="M4 7h16"/><path d="M6 7v11a2 2 0 002 2h8a2 2 0 002-2V7"/><path d="M9 11h6"/><path d="M10 4h4l1 3H9l1-3z"/>',
-      unarchive: '<path d="M4 7h16"/><path d="M6 7v11a2 2 0 002 2h8a2 2 0 002-2V7"/><path d="M12 17V11"/><path d="M9 13l3-3 3 3"/><path d="M10 4h4l1 3H9l1-3z"/>',
+      download: '<path d="M5,20H19V18H5M19,9H15V3H9V9H5L12,16L19,9Z"/>',
+      archive: '<path d="M3,3H21V7H3V3M4,8H20V21H4V8M9.5,11A0.5,0.5 0 0,0 9,11.5V13H15V11.5A0.5,0.5 0 0,0 14.5,11H9.5Z"/>',
+      unarchive: '<path d="M4 21H20V8H4M14 15V18H10V15H7L12 10L17 15M3 3H21V7H3"/>',
+      star: '<path d="M12,17.27L18.18,21L16.54,13.97L22,9.24L14.81,8.62L12,2L9.19,8.62L2,9.24L7.45,13.97L5.82,21L12,17.27Z"/>',
+      starOutline: '<path d="M12,15.39L8.24,17.66L9.23,13.38L5.91,10.5L10.29,10.13L12,6.09L13.71,10.13L18.09,10.5L14.77,13.38L15.76,17.66M22,9.24L14.81,8.63L12,2L9.19,8.63L2,9.24L7.45,13.97L5.82,21L12,17.27L18.18,21L16.54,13.97L22,9.24Z"/>',
     };
 
     function makeIconBtn(className, title, iconKey) {
       const btn = document.createElement('button');
       btn.className = 'clip__btn' + (className ? ' ' + className : '');
       btn.title = title;
+      btn.setAttribute('aria-label', title);
       btn.appendChild(svgIcon(ICONS[iconKey]));
       return btn;
     }
@@ -2644,16 +2682,17 @@
       keepersBtn.hidden = historyFilter === 'archived';
       keepersBtn.disabled = starredActive.length === 0 && historyFilter !== 'keepers';
       archivedBtn.disabled = archived.length === 0 && historyFilter !== 'archived';
-      archivedBtn.textContent = historyFilter === 'archived'
+      archivedLabel.textContent = historyFilter === 'archived'
         ? 'Back to history'
         : 'Archived (' + archived.length + ')';
       archivedBtn.title = historyFilter === 'archived'
         ? 'Leave archived view'
         : 'Show archived takes';
+      archivedBtn.setAttribute('aria-label', archivedBtn.title);
 
       selectModeBtn.classList.toggle('on', historySelecting);
       selectModeBtn.setAttribute('aria-pressed', String(historySelecting));
-      selectModeBtn.textContent = historySelecting ? 'Done' : 'Edit';
+      selectModeLabel.textContent = historySelecting ? 'Done' : 'Edit';
       selectModeBtn.title = historySelecting ? 'Finish editing takes' : 'Edit takes';
       selectModeBtn.setAttribute('aria-label', selectModeBtn.title);
       selectModeBtn.disabled = items.length === 0;
@@ -2738,7 +2777,7 @@
         if (historySelecting) {
           const keeperMark = document.createElement('span');
           keeperMark.className = 'clip__keeper-mark';
-          keeperMark.textContent = item.starred ? '★' : '';
+          if (item.starred) keeperMark.appendChild(svgIcon(ICONS.star));
           keeperMark.setAttribute('aria-label', item.starred ? 'Keeper' : '');
           row.appendChild(keeperMark);
         } else {
@@ -2754,10 +2793,11 @@
             item.archived ? 'unarchive' : 'archive'
           );
 
-          const starBtn = document.createElement('button');
-          starBtn.className = 'clip__btn primary star' + (item.starred ? ' on' : '');
-          starBtn.textContent = item.starred ? '★' : '☆';
-          starBtn.title = item.starred ? 'Unstar keeper' : 'Star as keeper';
+          const starBtn = makeIconBtn(
+            'primary star' + (item.starred ? ' on' : ''),
+            item.starred ? 'Unstar keeper' : 'Star as keeper',
+            item.starred ? 'star' : 'starOutline'
+          );
 
           const dlBtn = makeIconBtn('primary', 'Download', 'download');
 
