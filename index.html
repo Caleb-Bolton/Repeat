@@ -1068,7 +1068,7 @@
     </div>
 
     <div class="controls">
-      <button class="session-btn" id="sessionBtn">
+      <button class="session-btn" id="sessionBtn" aria-keyshortcuts="Space" title="Start or pause recording (Space)">
         <span class="session-btn__icon" id="sessionIcon">▶</span>
         <span id="sessionLabel">Start recording</span>
       </button>
@@ -1309,6 +1309,7 @@
     let historySelecting = false;
     const selectedTakeIds = new Set();
     let dbPromise = null;
+    let sessionStartPromise = null;
     let sessionStopPromise = null;
     let historyPlayRequest = 0;
     const pendingTakeSaves = new Set();
@@ -1966,12 +1967,57 @@
     phaseSilence.style.strokeDasharray = String(PHASE_C);
     setStatus('idle');
 
-    sessionBtn.addEventListener('click', async () => {
-      if (running || sessionStopPromise) await stop();
-      else await start();
+    async function toggleRecordingSession({ skipPlayback = false } = {}) {
+      if (skipPlayback && loopAudio) {
+        skipLoopPlayback();
+        return;
+      }
+
+      // Ignore another toggle while microphone access is still opening. This
+      // prevents quick taps from creating overlapping capture sessions.
+      if (sessionStartPromise) return;
+
+      if (running) {
+        await stop();
+        return;
+      }
+
+      // If capture is still closing, resume only after every take is safely
+      // finalized and the previous microphone stream has been released.
+      if (sessionStopPromise) await sessionStopPromise;
+      await start();
+    }
+
+    sessionBtn.addEventListener('click', () => {
+      toggleRecordingSession().catch(err => {
+        console.warn('Could not toggle recording', err);
+      });
     });
 
-    async function start() {
+    document.addEventListener('keydown', e => {
+      if (e.code !== 'Space' || e.repeat || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
+      if (!confirmDialog.hidden) return;
+
+      const target = e.target;
+      if (target instanceof Element && (target.matches('input, textarea, select') || target.isContentEditable)) {
+        return;
+      }
+
+      e.preventDefault();
+      toggleRecordingSession({ skipPlayback: true }).catch(err => {
+        console.warn('Could not toggle recording', err);
+      });
+    });
+
+    function start() {
+      if (sessionStartPromise) return sessionStartPromise;
+      sessionStartPromise = startSession().finally(() => {
+        sessionStartPromise = null;
+      });
+      return sessionStartPromise;
+    }
+
+    async function startSession() {
       if (sessionStopPromise) await sessionStopPromise;
       historyPlayRequest++;
       stopHistoryPlayback();
@@ -1983,6 +2029,10 @@
         return;
       }
 
+      // Historical playback can be started while microphone permission is
+      // pending. Stop it again before capture becomes active.
+      historyPlayRequest++;
+      stopHistoryPlayback();
       running = true;
       sessionBtn.classList.add('running');
       sessionIcon.textContent = '■';
@@ -3088,7 +3138,7 @@
     });
     phaseEl.addEventListener('keydown', (e) => {
       if (!loopAudio) return;
-      if (e.key === 'Enter' || e.key === ' ') {
+      if (e.key === 'Enter') {
         e.preventDefault();
         skipLoopPlayback();
       }
