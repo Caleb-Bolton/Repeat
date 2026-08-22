@@ -313,7 +313,7 @@
     button:active { transform: scale(0.98); }
     button:disabled { opacity: 0.4; cursor: not-allowed; }
 
-    /* Single session toggle: starts / stops the whole loop. */
+    /* Single recording toggle: starts / stops the whole loop. */
     .session-btn {
       flex: 1;
       display: flex;
@@ -495,6 +495,74 @@
       color: var(--muted);
       font-size: 11px;
       line-height: 1.45;
+    }
+
+    .preference-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 12px 0 0;
+      border-top: 1px solid #272b3b;
+      cursor: pointer;
+    }
+    .preference-toggle__copy {
+      display: grid;
+      gap: 3px;
+      min-width: 0;
+    }
+    .preference-toggle__label {
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .preference-toggle__help {
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.4;
+    }
+    .preference-toggle__control {
+      position: relative;
+      width: 42px;
+      height: 24px;
+      flex: none;
+    }
+    .preference-toggle__control input {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+    }
+    .preference-toggle__track {
+      position: absolute;
+      inset: 0;
+      border-radius: 999px;
+      background: #2a2f42;
+      box-shadow: inset 0 0 0 1px #3a4158;
+      transition: background 0.2s, box-shadow 0.2s;
+    }
+    .preference-toggle__track::after {
+      content: '';
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--muted);
+      transition: transform 0.2s, background 0.2s;
+    }
+    .preference-toggle__control input:checked + .preference-toggle__track {
+      background: rgba(91,140,255,0.2);
+      box-shadow: inset 0 0 0 1px rgba(91,140,255,0.55);
+    }
+    .preference-toggle__control input:checked + .preference-toggle__track::after {
+      background: var(--accent);
+      transform: translateX(18px);
+    }
+    .preference-toggle__control input:focus-visible + .preference-toggle__track {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
     }
 
     .metro-toggle {
@@ -1002,7 +1070,7 @@
     <div class="controls">
       <button class="session-btn" id="sessionBtn">
         <span class="session-btn__icon" id="sessionIcon">▶</span>
-        <span id="sessionLabel">Start session</span>
+        <span id="sessionLabel">Start recording</span>
       </button>
       <button class="settings-btn" id="metroPanelBtn" title="Metronome" aria-label="Metronome" aria-expanded="false">
         <svg class="settings-btn__icon settings-btn__icon--filled" viewBox="0 0 24 24" aria-hidden="true">
@@ -1025,6 +1093,16 @@
         <label>Silence duration <b id="durVal">1.5s</b></label>
         <input type="range" id="dur" min="300" max="4000" step="100" value="1500" />
       </div>
+      <label class="preference-toggle" for="autoPlayback">
+        <span class="preference-toggle__copy">
+          <span class="preference-toggle__label">Play back each take</span>
+          <span class="preference-toggle__help">Hear each recording before listening for the next one.</span>
+        </span>
+        <span class="preference-toggle__control">
+          <input type="checkbox" id="autoPlayback" checked />
+          <span class="preference-toggle__track" aria-hidden="true"></span>
+        </span>
+      </label>
       <div class="audio-mode" role="radiogroup" aria-labelledby="audioModeLabel" aria-describedby="audioModeHelp">
         <p class="audio-mode__label" id="audioModeLabel">Recording mode</p>
         <div class="audio-mode__options">
@@ -1153,6 +1231,7 @@
     const durSlider = document.getElementById('dur');
     const threshVal = document.getElementById('threshVal');
     const durVal = document.getElementById('durVal');
+    const autoPlaybackInput = document.getElementById('autoPlayback');
     const audioModeInputs = Array.from(document.querySelectorAll('input[name="audioMode"]'));
     const audioModeHelp = document.getElementById('audioModeHelp');
     const historyList = document.getElementById('historyList');
@@ -1824,6 +1903,7 @@
         localStorage.setItem(SETTINGS_KEY, JSON.stringify({
           thresh: Number(threshSlider.value),
           dur: Number(durSlider.value),
+          autoPlayback: autoPlaybackInput.checked,
           audioMode: selectedAudioMode(),
         }));
       } catch (err) {
@@ -1838,6 +1918,9 @@
           const prefs = JSON.parse(raw);
           if (prefs.thresh != null) threshSlider.value = prefs.thresh;
           if (prefs.dur != null) durSlider.value = prefs.dur;
+          if (typeof prefs.autoPlayback === 'boolean') {
+            autoPlaybackInput.checked = prefs.autoPlayback;
+          }
           if (prefs.audioMode === 'speech') {
             document.getElementById('audioModeSpeech').checked = true;
           }
@@ -1871,6 +1954,7 @@
       durVal.textContent = (durSlider.value / 1000).toFixed(1) + 's';
       persistSettings();
     });
+    autoPlaybackInput.addEventListener('change', persistSettings);
     audioModeInputs.forEach(input => {
       input.addEventListener('change', () => {
         updateAudioModeHelp();
@@ -1902,7 +1986,7 @@
       running = true;
       sessionBtn.classList.add('running');
       sessionIcon.textContent = '■';
-      sessionLabel.textContent = 'Stop session';
+      sessionLabel.textContent = 'Stop recording';
 
       beginRecording();
       monitor();
@@ -2020,7 +2104,7 @@
 
       sessionBtn.classList.remove('running');
       sessionIcon.textContent = '▶';
-      sessionLabel.textContent = 'Start session';
+      sessionLabel.textContent = 'Start recording';
       resetPhaseVisual();
       setStatus('idle');
 
@@ -2121,7 +2205,7 @@
         running = false;
         sessionBtn.classList.remove('running');
         sessionIcon.textContent = '▶';
-        sessionLabel.textContent = 'Start session';
+        sessionLabel.textContent = 'Start recording';
         setStatus('blocked');
         return;
       }
@@ -2280,10 +2364,14 @@
         const duration = sampleCount / sampleRate;
         addToHistory(blob, 'audio/wav', duration);
 
-        // Preserve the iOS routing workaround by releasing all capture nodes
-        // and the microphone before immediate playback begins.
-        await teardownMedia();
-        if (running) playback(blob, duration);
+        if (autoPlaybackInput.checked) {
+          // Preserve the iOS routing workaround by releasing all capture nodes
+          // and the microphone before immediate playback begins.
+          await teardownMedia();
+          if (running) playback(blob, duration);
+        } else if (running) {
+          beginRecording();
+        }
       })().finally(() => {
         pcmFinalizePromise = null;
       });
@@ -2327,11 +2415,15 @@
       const duration = (performance.now() - recordStartTime) / 1000;
       addToHistory(blob, type, duration);
 
-      // Fully release capture before playback. On iOS, leaving getUserMedia
-      // active can keep output in a lower-quality duplex audio route.
-      await teardownMedia();
-      if (!running) return;
-      playback(blob, duration);
+      if (autoPlaybackInput.checked) {
+        // Fully release capture before playback. On iOS, leaving getUserMedia
+        // active can keep output in a lower-quality duplex audio route.
+        await teardownMedia();
+        if (!running) return;
+        playback(blob, duration);
+      } else {
+        beginRecording();
+      }
     }
 
     function addToHistory(blob, type, duration) {
