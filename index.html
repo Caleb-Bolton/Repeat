@@ -142,15 +142,50 @@
     }
     .phase__threshold {
       opacity: 0.9;
+      cursor: grab;
+      touch-action: none;
+      user-select: none;
+      transition: opacity 0.2s ease;
+    }
+    .phase__threshold.dragging {
+      cursor: grabbing;
+    }
+    .phase__threshold-hit {
+      fill: none;
+      stroke: transparent;
+      stroke-width: 16;
+      pointer-events: stroke;
     }
     .phase__threshold-tick {
       stroke: #c5cad8;
       stroke-width: 2.5;
       stroke-linecap: round;
+      pointer-events: none;
+      transition: stroke-width 0.15s ease;
     }
-    .phase.playing .phase__threshold,
-    .phase.idle .phase__threshold {
+    .phase__threshold-handle {
+      fill: #c5cad8;
+      stroke: #12141d;
+      stroke-width: 1.5;
+      pointer-events: none;
+      transition: fill 0.15s ease;
+    }
+    .phase__threshold:hover .phase__threshold-tick,
+    .phase__threshold:focus-visible .phase__threshold-tick,
+    .phase__threshold.dragging .phase__threshold-tick {
+      stroke-width: 3.5;
+    }
+    .phase__threshold:hover .phase__threshold-handle,
+    .phase__threshold:focus-visible .phase__threshold-handle,
+    .phase__threshold.dragging .phase__threshold-handle {
+      fill: #fff;
+    }
+    .phase__threshold:focus-visible {
+      outline: none;
+    }
+    .phase.playing .phase__threshold {
       opacity: 0;
+      pointer-events: none;
     }
     .phase__core {
       position: absolute;
@@ -1051,12 +1086,15 @@
     </div>
 
     <div class="phase idle" id="phase" aria-live="polite" aria-label="Ready">
-      <svg class="phase__svg" viewBox="0 0 120 120" aria-hidden="true">
+      <svg class="phase__svg" viewBox="0 0 120 120">
         <circle class="phase__track" cx="60" cy="60" r="52"></circle>
         <circle class="phase__progress" id="phaseProgress" cx="60" cy="60" r="52"></circle>
         <circle class="phase__silence" id="phaseSilence" cx="60" cy="60" r="52"></circle>
-        <g class="phase__threshold" id="phaseThreshold">
+        <g class="phase__threshold" id="phaseThreshold" role="slider" tabindex="0" aria-label="Minimum volume threshold" aria-valuemin="1" aria-valuemax="40" aria-valuenow="8">
+          <title>Drag to adjust minimum volume threshold</title>
+          <line class="phase__threshold-hit" x1="102" y1="60" x2="120" y2="60"></line>
           <line class="phase__threshold-tick" x1="107" y1="60" x2="117" y2="60"></line>
+          <circle class="phase__threshold-handle" cx="112" cy="60" r="3.5"></circle>
         </g>
       </svg>
       <div class="phase__core">
@@ -1227,6 +1265,7 @@
     let silenceDisplayPct = 0;
     let pendingEnterId = null;
     let phaseIconAnimTimer = null;
+    let thresholdDrag = null;
     const threshSlider = document.getElementById('thresh');
     const durSlider = document.getElementById('dur');
     const threshVal = document.getElementById('threshVal');
@@ -1851,8 +1890,45 @@
     }
 
     function updateThresholdTick() {
-      const deg = (Number(threshSlider.value) / 100) * 360;
+      const value = Number(threshSlider.value);
+      const deg = (value / 100) * 360;
       phaseThreshold.setAttribute('transform', 'rotate(' + deg + ' 60 60)');
+      phaseThreshold.setAttribute('aria-valuenow', String(value));
+      phaseThreshold.setAttribute('aria-valuetext', value + ' percent');
+    }
+
+    function setThresholdValue(value, { save = false } = {}) {
+      const min = Number(threshSlider.min);
+      const max = Number(threshSlider.max);
+      const step = Number(threshSlider.step) || 1;
+      const clamped = Math.max(min, Math.min(max, Number(value) || min));
+      const stepped = Math.round((clamped - min) / step) * step + min;
+      threshSlider.value = String(stepped);
+      threshVal.textContent = stepped + '%';
+      updateThresholdTick();
+      if (thresholdDrag) setPhaseMeta('Threshold ' + stepped + '%');
+      if (save) persistSettings();
+    }
+
+    function pointerAngleOnPhase(event) {
+      const rect = phaseEl.getBoundingClientRect();
+      const x = event.clientX - (rect.left + rect.width / 2);
+      const y = event.clientY - (rect.top + rect.height / 2);
+      return Math.atan2(y, x) * 180 / Math.PI;
+    }
+
+    function finishThresholdDrag() {
+      if (!thresholdDrag) return;
+      const pointerId = thresholdDrag.pointerId;
+      thresholdDrag = null;
+      phaseThreshold.classList.remove('dragging');
+      try {
+        if (phaseThreshold.hasPointerCapture(pointerId)) {
+          phaseThreshold.releasePointerCapture(pointerId);
+        }
+      } catch (_) {}
+      setPhaseMeta('');
+      persistSettings();
     }
 
     function setPhasePlaybackInteractive(on) {
@@ -1879,6 +1955,11 @@
 
       const canSkipPlayback = state === 'playing';
       setPhasePlaybackInteractive(canSkipPlayback);
+      const canAdjustThreshold = visualState !== 'playing';
+      phaseThreshold.setAttribute('tabindex', canAdjustThreshold ? '0' : '-1');
+      if (canAdjustThreshold) phaseThreshold.removeAttribute('aria-hidden');
+      else phaseThreshold.setAttribute('aria-hidden', 'true');
+      if (!canAdjustThreshold) finishThresholdDrag();
       if (!(state === 'listening' || state === 'recording')) clearWaveform();
       if (state === 'playing') {
         phaseEl.setAttribute('aria-label', 'Playing, click to skip');
@@ -1929,10 +2010,9 @@
       } catch (err) {
         console.warn('Could not load settings', err);
       }
-      threshVal.textContent = threshSlider.value + '%';
+      setThresholdValue(threshSlider.value);
       durVal.textContent = (durSlider.value / 1000).toFixed(1) + 's';
       updateAudioModeHelp();
-      updateThresholdTick();
     }
 
     function selectedAudioMode() {
@@ -1947,9 +2027,57 @@
     }
 
     threshSlider.addEventListener('input', () => {
-      threshVal.textContent = threshSlider.value + '%';
-      updateThresholdTick();
-      persistSettings();
+      setThresholdValue(threshSlider.value, { save: true });
+    });
+    phaseThreshold.addEventListener('pointerdown', e => {
+      if (e.button !== 0 || phaseEl.classList.contains('playing')) return;
+      e.preventDefault();
+      e.stopPropagation();
+      thresholdDrag = {
+        pointerId: e.pointerId,
+        startAngle: pointerAngleOnPhase(e),
+        startValue: Number(threshSlider.value),
+      };
+      phaseThreshold.classList.add('dragging');
+      setPhaseMeta('Threshold ' + threshSlider.value + '%');
+      try { phaseThreshold.setPointerCapture(e.pointerId); } catch (_) {}
+      try {
+        phaseThreshold.focus({ preventScroll: true });
+      } catch (_) {
+        try { phaseThreshold.focus(); } catch (_) {}
+      }
+    });
+    window.addEventListener('pointermove', e => {
+      if (!thresholdDrag || e.pointerId !== thresholdDrag.pointerId) return;
+      e.preventDefault();
+      let delta = pointerAngleOnPhase(e) - thresholdDrag.startAngle;
+      if (delta > 180) delta -= 360;
+      if (delta < -180) delta += 360;
+      setThresholdValue(thresholdDrag.startValue + delta / 3.6);
+    });
+    window.addEventListener('pointerup', e => {
+      if (thresholdDrag && e.pointerId === thresholdDrag.pointerId) finishThresholdDrag();
+    });
+    window.addEventListener('pointercancel', e => {
+      if (thresholdDrag && e.pointerId === thresholdDrag.pointerId) finishThresholdDrag();
+    });
+    phaseThreshold.addEventListener('keydown', e => {
+      const deltas = {
+        ArrowUp: 1,
+        ArrowRight: 1,
+        ArrowDown: -1,
+        ArrowLeft: -1,
+        PageUp: 5,
+        PageDown: -5,
+      };
+      let next = null;
+      if (e.key === 'Home') next = Number(threshSlider.min);
+      else if (e.key === 'End') next = Number(threshSlider.max);
+      else if (deltas[e.key]) next = Number(threshSlider.value) + deltas[e.key];
+      if (next === null) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setThresholdValue(next, { save: true });
     });
     durSlider.addEventListener('input', () => {
       durVal.textContent = (durSlider.value / 1000).toFixed(1) + 's';
@@ -1999,11 +2127,18 @@
       if (!confirmDialog.hidden) return;
 
       const target = e.target;
-      if (target instanceof Element && (target.matches('input, textarea, select') || target.isContentEditable)) {
+      const isTextEntry = target instanceof Element && (
+        target.matches('textarea, input[type="text"], input[type="search"], input[type="email"], input[type="url"], input[type="tel"], input[type="password"]') ||
+        target.isContentEditable
+      );
+      if (isTextEntry) {
         return;
       }
 
       e.preventDefault();
+      // A focused button, toggle, or slider would otherwise receive Space on
+      // keyup and activate after the recording shortcut has already run.
+      if (target instanceof HTMLElement) target.blur();
       toggleRecordingSession({ skipPlayback: true }).catch(err => {
         console.warn('Could not toggle recording', err);
       });
